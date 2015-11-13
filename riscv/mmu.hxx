@@ -3,15 +3,16 @@
 #ifndef _RISCV_MMU_H
 #define _RISCV_MMU_H
 
-#include "decode.h"
-#include "trap.h"
 #include "common.h"
 #include "config.h"
-#include "processor.h"
-#include "memtracer.h"
-#include <stdlib.h>
+#include <cstdlib>
 #include <vector>
+#include "decode.hxx"
+#include "memtracer.hxx"
+#include "processor.hxx"
+#include "trap.hxx"
 
+namespace riscv_isa_sim {
 // virtual memory configuration
 #define PGSHIFT 12
 const reg_t PGSIZE = 1 << PGSHIFT;
@@ -179,5 +180,6 @@ private:
   
   friend class processor_t;
 };
+}  // namespace riscv_isa_sim
 
 #endif

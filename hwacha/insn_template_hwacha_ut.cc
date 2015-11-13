@@ -1,6 +1,7 @@
 // See LICENSE for license details.
-#include "insn_template_hwacha_ut.h"
+#include "insn_template_hwacha_ut.hxx"
 
+namespace riscv_isa_sim {
 reg_t hwacha_NAME(processor_t* p, insn_t insn, reg_t pc)
 {
   int xlen = 64;
@@ -13,3 +14,4 @@ reg_t hwacha_NAME(processor_t* p, insn_t insn, reg_t pc)
   WRITE_UTIDX(0);
   return npc;
 }
+}  // namespace riscv_isa_sim

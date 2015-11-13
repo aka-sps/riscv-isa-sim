@@ -5,6 +5,7 @@
 
 #include <cstdint>
 
+namespace riscv_isa_sim {
 inline uint64_t mulhu(uint64_t a, uint64_t b)
 {
   uint64_t t;
@@ -39,5 +40,6 @@ inline int64_t mulhsu(int64_t a, uint64_t b)
   uint64_t res = mulhu(a < 0 ? -a : a, b);
   return negate ? ~res + (a * b == 0) : res;
 }
+}  // namespace riscv_isa_sim
 
 #endif

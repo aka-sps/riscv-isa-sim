@@ -7,24 +7,24 @@ riscv_subproject_deps = \
 riscv_install_prog_srcs = \
 
 riscv_hdrs = \
-	htif.h \
+	htif.hxx \
 	common.h \
-	decode.h \
-	disasm.h \
-	mmu.h \
-	processor.h \
-	sim.h \
-	trap.h \
+	decode.hxx \
+	disasm.hxx \
+	mmu.hxx \
+	processor.hxx \
+	sim.hxx \
+	trap.hxx \
 	encoding.h \
-	cachesim.h \
-	memtracer.h \
-	extension.h \
-	rocc.h \
-	insn_template.h \
-	mulhi.h \
+	cachesim.hxx \
+	memtracer.hxx \
+	extension.hxx \
+	rocc.hxx \
+	insn_template.hxx \
+	mulhi.hxx \
 
 riscv_precompiled_hdrs = \
-	insn_template.h \
+	insn_template.hxx \
 
 riscv_srcs = \
 	htif.cc \
@@ -250,9 +250,9 @@ riscv_insn_list = \
 riscv_gen_srcs = \
 	$(addsuffix .cc,$(riscv_insn_list))
 
-icache_entries := `grep "ICACHE_ENTRIES =" $(src_dir)/riscv/mmu.h | sed 's/.* = \(.*\);/\1/'`
+icache_entries := `grep "ICACHE_ENTRIES =" $(src_dir)/riscv/mmu.hxx | sed 's/.* = \(.*\);/\1/'`
 
-icache.h: mmu.h
+icache.h: mmu.hxx
 	$(src_dir)/riscv/gen_icache $(icache_entries) > $@.tmp
 	mv $@.tmp $@
 

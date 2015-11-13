@@ -1,10 +1,10 @@
 // See LICENSE for license details.
 
-#include "processor.h"
-#include "mmu.h"
+#include "processor.hxx"
+#include "mmu.hxx"
 #include <cassert>
 
-
+namespace riscv_isa_sim {
 static void commit_log_stash_privilege(state_t* state)
 {
 #ifdef RISCV_ENABLE_COMMITLOG
@@ -123,3 +123,4 @@ miss:
     n -= instret;
   }
 }
+}  // namespace riscv_isa_sim

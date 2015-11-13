@@ -1,7 +1,10 @@
-#include "rocc.h"
-#include "mmu.h"
+#include "mmu.hxx"
+
 #include <cstring>
 
+#include "../riscv/rocc.hxx"
+
+namespace riscv_isa_sim {
 class dummy_rocc_t : public rocc_t
 {
  public:
@@ -45,3 +48,4 @@ class dummy_rocc_t : public rocc_t
 };
 
 REGISTER_EXTENSION(dummy_rocc, []() { return new dummy_rocc_t; })
+}  // namespace riscv_isa_sim

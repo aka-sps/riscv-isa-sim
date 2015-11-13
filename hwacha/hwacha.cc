@@ -1,9 +1,10 @@
-#include "hwacha.h"
+#include "hwacha.hxx"
+#include "mmu.hxx"
+#include "trap.hxx"
 #include "hwacha_xcpt.h"
-#include "mmu.h"
-#include "trap.h"
 #include <stdexcept>
 
+namespace riscv_isa_sim {
 REGISTER_EXTENSION(hwacha, []() { return new hwacha_t; })
 
 void ct_state_t::reset()
@@ -82,10 +83,10 @@ static reg_t custom(processor_t* p, insn_t insn, reg_t pc)
 std::vector<insn_desc_t> hwacha_t::get_instructions()
 {
   std::vector<insn_desc_t> insns;
-  insns.push_back((insn_desc_t){0x0b, 0x7f, &::illegal_instruction, custom});
-  insns.push_back((insn_desc_t){0x2b, 0x7f, &::illegal_instruction, custom});
-  insns.push_back((insn_desc_t){0x5b, 0x7f, &::illegal_instruction, custom});
-  insns.push_back((insn_desc_t){0x7b, 0x7f, &::illegal_instruction, custom});
+  insns.push_back((insn_desc_t){0x0b, 0x7f, &::riscv_isa_sim::illegal_instruction, custom});
+  insns.push_back((insn_desc_t){0x2b, 0x7f, &::riscv_isa_sim::illegal_instruction, custom});
+  insns.push_back((insn_desc_t){0x5b, 0x7f, &::riscv_isa_sim::illegal_instruction, custom});
+  insns.push_back((insn_desc_t){0x7b, 0x7f, &::riscv_isa_sim::illegal_instruction, custom});
   return insns;
 }
 
@@ -105,3 +106,4 @@ void hwacha_t::take_exception(reg_t c, reg_t a)
   raise_interrupt();
   throw std::logic_error("unreachable!");
 }
+}  // namespace riscv_isa_sim

@@ -4,9 +4,10 @@
 #define _MEMTRACER_H
 
 #include <cstdint>
-#include <string.h>
+#include <cstring>
 #include <vector>
 
+namespace riscv_isa_sim {
 enum access_type {
   LOAD,
   STORE,
@@ -46,5 +47,7 @@ class memtracer_list_t : public memtracer_t
  private:
   std::vector<memtracer_t*> list;
 };
+
+}  // namespace riscv_isa_sim
 
 #endif

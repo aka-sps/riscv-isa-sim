@@ -3,11 +3,12 @@
 #ifndef _RISCV_DISASM_H
 #define _RISCV_DISASM_H
 
-#include "decode.h"
 #include <string>
 #include <sstream>
 #include <vector>
+#include "decode.hxx"
 
+namespace riscv_isa_sim {
 extern const char* xpr_name[NXPR];
 extern const char* fpr_name[NFPR];
 
@@ -69,5 +70,6 @@ class disassembler_t
   std::vector<const disasm_insn_t*> chain[HASH_SIZE+1];
   const disasm_insn_t* lookup(insn_t insn);
 };
+}  // namespace riscv_isa_sim
 
 #endif

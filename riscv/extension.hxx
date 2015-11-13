@@ -3,11 +3,12 @@
 #ifndef _RISCV_COPROCESSOR_H
 #define _RISCV_COPROCESSOR_H
 
-#include "processor.h"
-#include "disasm.h"
 #include <vector>
 #include <functional>
+#include "disasm.hxx"
+#include "processor.hxx"
 
+namespace riscv_isa_sim {
 class extension_t
 {
  public:
@@ -34,5 +35,7 @@ void register_extension(const char* name, std::function<extension_t*()> f);
   class register_##name { \
     public: register_##name() { register_extension(#name, constructor); } \
   }; static register_##name dummy_##name;
+
+}  // namespace riscv_isa_sim
 
 #endif

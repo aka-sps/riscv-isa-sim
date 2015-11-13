@@ -1,18 +1,19 @@
 // See LICENSE for license details.
 
-#include "sim.h"
-#include "htif.h"
-#include "cachesim.h"
-#include "extension.h"
+#include "../riscv/sim.hxx"
+#include "../../riscv-fesvr/fesvr/option_parser.hxx"
+#include "../riscv/cachesim.hxx"
+#include "../riscv/htif.hxx"
+#include "extension.hxx"
 #include <dlfcn.h>
-#include <fesvr/option_parser.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <cstdio>
+#include <cstdlib>
 #include <getopt.h>
 #include <vector>
 #include <string>
 #include <memory>
 
+namespace riscv_isa_sim {
 static void help()
 {
   fprintf(stderr, "usage: spike [host options] <target program> [target options]\n");
@@ -31,9 +32,11 @@ static void help()
   fprintf(stderr, "  --extlib=<name>    Shared library to load\n");
   exit(1);
 }
+}  // namespace riscv_isa_sim
 
 int main(int argc, char** argv)
 {
+  using namespace riscv_isa_sim;
   bool debug = false;
   bool histogram = false;
   bool log = false;
@@ -45,6 +48,7 @@ int main(int argc, char** argv)
   std::function<extension_t*()> extension;
   const char* isa = "RV64";
 
+  using namespace riscv_fesvr;
   option_parser_t parser;
   parser.help(&help);
   parser.option('h', 0, 0, [&](const char* s){help();});
@@ -83,6 +87,9 @@ int main(int argc, char** argv)
 
   s.set_debug(debug);
   s.set_log(log);
+  if (log) {
+    freopen("spike.log", "w", stderr);
+  }
   s.set_histogram(histogram);
   return s.run();
 }

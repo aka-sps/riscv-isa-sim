@@ -2,12 +2,13 @@
 #ifndef _RISCV_PROCESSOR_H
 #define _RISCV_PROCESSOR_H
 
-#include "decode.h"
 #include "config.h"
 #include <cstring>
 #include <vector>
 #include <map>
+#include "decode.hxx"
 
+namespace riscv_isa_sim {
 class processor_t;
 class mmu_t;
 typedef reg_t (*insn_func_t)(processor_t*, insn_t, reg_t);
@@ -142,5 +143,5 @@ reg_t illegal_instruction(processor_t* p, insn_t insn, reg_t pc);
   extern reg_t rv32_##name(processor_t*, insn_t, reg_t); \
   extern reg_t rv64_##name(processor_t*, insn_t, reg_t); \
   proc->register_insn((insn_desc_t){match, mask, rv32_##name, rv64_##name});
-
+}  // namespace riscv_isa_sim
 #endif

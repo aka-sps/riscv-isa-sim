@@ -184,13 +184,15 @@ _$(1).cc :
 
 # Build the object files for this subproject
 
-$(2)_pch := $$(patsubst %.h, %.h.gch, $$($(2)_precompiled_hdrs))
+$(2)_pch := $$(patsubst %.hxx, %.hxx.gch, $$(patsubst %.h, %.h.gch, $$($(2)_precompiled_hdrs)))
 $(2)_objs := $$(patsubst %.cc, %.o, $$($(2)_srcs))
 $(2)_c_objs := $$(patsubst %.c, %.o, $$($(2)_c_srcs))
 $(2)_deps := $$(patsubst %.o, %.d, $$($(2)_objs))
 $(2)_deps += $$(patsubst %.o, %.d, $$($(2)_c_objs))
-$(2)_deps += $$(patsubst %.h, %.h.d, $$($(2)_precompiled_hdrs))
-$$($(2)_pch) : %.h.gch : %.h
+$(2)_deps += $$(patsubst %.h, %.h.d, $$(filter %.h,$$($(2)_precompiled_hdrs))) $$(patsubst %.hxx, %.hxx.d, $$(filter %.hxx,$$($(2)_precompiled_hdrs)))
+$$(filter %.h.gch,$$($(2)_pch)) : %.h.gch : %.h
+	$(COMPILE) $$< -o $$@
+$$(filter %.hxx.gch,$$($(2)_pch)) : %.hxx.gch : %.hxx
 	$(COMPILE) $$< -o $$@
 # If using clang, don't depend (and thus don't build) precompiled headers
 $$($(2)_objs) : %.o : %.cc $$($(2)_gen_hdrs) $(if $(filter-out clang,$(CC)),$$($(2)_pch))

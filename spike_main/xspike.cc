@@ -12,8 +12,11 @@
 #include <cstring>
 #include <stdexcept>
 
+// using namespace riscv_isa_sim;
+namespace {
 static pid_t fork_spike(int tty_fd, int argc, char** argv);
 static pid_t fork_xterm(int* tty_fd);
+}  // namespace
 
 int main(int argc, char** argv)
 {
@@ -52,6 +55,7 @@ out:
   return ret;
 }
 
+namespace {
 static pid_t fork_spike(int tty_fd, int argc, char** argv)
 {
   pid_t pid = fork();
@@ -100,3 +104,4 @@ static pid_t fork_xterm(int* tty_fd)
 
   return pid;
 }
+}  // namespace

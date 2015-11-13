@@ -3,12 +3,14 @@
 #ifndef _RISCV_SIM_H
 #define _RISCV_SIM_H
 
+#include "mmu.hxx"
+#include "processor.hxx"
+
 #include <vector>
 #include <string>
 #include <memory>
-#include "processor.h"
-#include "mmu.h"
 
+namespace riscv_isa_sim {
 class htif_isasim_t;
 
 // this class encapsulates the processors and memory in a RISC-V machine.
@@ -89,5 +91,6 @@ private:
 };
 
 extern volatile bool ctrlc_pressed;
+}  // namespace riscv_isa_sim
 
 #endif

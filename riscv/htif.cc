@@ -1,16 +1,18 @@
 // See LICENSE for license details.
 
-#include "htif.h"
-#include "sim.h"
+#include "htif.hxx"
+#include "sim.hxx"
+
 #include "encoding.h"
 #include <unistd.h>
 #include <stdexcept>
-#include <stdlib.h>
+#include <cstdlib>
 #include <errno.h>
-#include <assert.h>
-#include <stddef.h>
+#include <cassert>
+#include <cstddef>
 #include <poll.h>
 
+namespace riscv_isa_sim {
 htif_isasim_t::htif_isasim_t(sim_t* _sim, const std::vector<std::string>& args)
   : htif_pthread_t(args), sim(_sim), reset(true), seqno(1)
 {
@@ -28,6 +30,7 @@ bool htif_isasim_t::tick()
 
 void htif_isasim_t::tick_once()
 {
+  using namespace riscv_fesvr;
   packet_header_t hdr;
   recv(&hdr, sizeof(hdr));
 
@@ -123,3 +126,4 @@ bool htif_isasim_t::done()
     return false;
   return !sim->running();
 }
+}  // namespace riscv_isa_sim

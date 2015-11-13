@@ -15,6 +15,7 @@
 #include "common.h"
 #include <cinttypes>
 
+namespace riscv_isa_sim {
 typedef int64_t sreg_t;
 typedef uint64_t reg_t;
 typedef uint64_t freg_t;
@@ -207,5 +208,6 @@ private:
   if (((write) && csr_read_only) || my_priv < csr_priv) \
     throw trap_illegal_instruction(); \
   (which); })
+}  // namespace riscv_isa_sim
 
 #endif

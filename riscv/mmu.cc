@@ -1,9 +1,10 @@
 // See LICENSE for license details.
 
-#include "mmu.h"
-#include "sim.h"
-#include "processor.h"
+#include "mmu.hxx"
+#include "processor.hxx"
+#include "sim.hxx"
 
+namespace riscv_isa_sim {
 mmu_t::mmu_t(char* _mem, size_t _memsz)
  : mem(_mem), memsz(_memsz), proc(NULL)
 {
@@ -152,3 +153,5 @@ void mmu_t::register_memtracer(memtracer_t* t)
   flush_tlb();
   tracer.hook(t);
 }
+
+}  // namespace riscv_isa_sim

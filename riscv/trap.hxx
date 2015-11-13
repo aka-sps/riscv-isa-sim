@@ -3,14 +3,16 @@
 #ifndef _RISCV_TRAP_H
 #define _RISCV_TRAP_H
 
-#include "decode.h"
+#include "decode.hxx"
 
+namespace riscv_isa_sim {
 struct state_t;
 
 class trap_t
 {
  public:
   trap_t(reg_t which) : which(which) {}
+  virtual ~trap_t(){}
   virtual const char* name();
   virtual void side_effects(state_t* state) {}
   reg_t cause() { return which; }
@@ -54,5 +56,5 @@ DECLARE_TRAP(CAUSE_USER_ECALL, user_ecall)
 DECLARE_TRAP(CAUSE_SUPERVISOR_ECALL, supervisor_ecall)
 DECLARE_TRAP(CAUSE_HYPERVISOR_ECALL, hypervisor_ecall)
 DECLARE_TRAP(CAUSE_MACHINE_ECALL, machine_ecall)
-
+}  // namespace riscv_isa_sim
 #endif

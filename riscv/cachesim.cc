@@ -1,11 +1,13 @@
 // See LICENSE for license details.
 
-#include "cachesim.h"
+#include "cachesim.hxx"
+
 #include "common.h"
 #include <cstdlib>
 #include <iostream>
 #include <iomanip>
 
+namespace riscv_isa_sim {
 cache_sim_t::cache_sim_t(size_t _sets, size_t _ways, size_t _linesz, const char* _name)
  : sets(_sets), ways(_ways), linesz(_linesz), name(_name)
 {
@@ -177,3 +179,4 @@ uint64_t fa_cache_sim_t::victimize(uint64_t addr)
   tags[addr >> idx_shift] = (addr >> idx_shift) | VALID;
   return old_tag;
 }
+}  // namespace riscv_isa_sim

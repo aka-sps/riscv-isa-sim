@@ -1,8 +1,9 @@
 // See LICENSE for license details.
 
-#include "extension.h"
-#include "trap.h"
+#include "extension.hxx"
+#include "trap.hxx"
 
+namespace riscv_isa_sim {
 extension_t::~extension_t()
 {
 }
@@ -27,3 +28,4 @@ void extension_t::raise_interrupt()
 void extension_t::clear_interrupt()
 {
 }
+}  // namespace riscv_isa_sim

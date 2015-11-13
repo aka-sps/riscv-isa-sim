@@ -1,8 +1,9 @@
 #ifndef _HWACHA_H
 #define _HWACHA_H
 
-#include "extension.h"
+#include "../riscv/extension.hxx"
 
+namespace riscv_isa_sim {
 struct ct_state_t
 {
   void reset();
@@ -58,5 +59,5 @@ private:
   disassembler_t ut_disassembler;
   bool debug;
 };
-
+}  // namespace riscv_isa_sim
 #endif

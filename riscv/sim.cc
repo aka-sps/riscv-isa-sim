@@ -1,14 +1,15 @@
 // See LICENSE for license details.
+#include "sim.hxx"
+#include "htif.hxx"
 
-#include "sim.h"
-#include "htif.h"
 #include <map>
 #include <iostream>
 #include <climits>
 #include <cstdlib>
 #include <cassert>
-#include <signal.h>
+#include <csignal>
 
+namespace riscv_isa_sim {
 volatile bool ctrlc_pressed = false;
 static void handle_signal(int sig)
 {
@@ -153,3 +154,4 @@ bool sim_t::mmio_store(reg_t addr, size_t len, const uint8_t* bytes)
 {
   return false;
 }
+}  // namespace riscv_isa_sim

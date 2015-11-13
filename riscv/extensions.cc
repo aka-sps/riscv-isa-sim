@@ -1,10 +1,11 @@
 // See LICENSE for license details.
 
-#include "extension.h"
+#include "extension.hxx"
 #include <string>
 #include <map>
 #include <dlfcn.h>
 
+namespace riscv_isa_sim {
 static std::map<std::string, std::function<extension_t*()>>& extensions()
 {
   static std::map<std::string, std::function<extension_t*()>> v;
@@ -35,3 +36,4 @@ std::function<extension_t*()> find_extension(const char* name)
 
   return extensions()[name];
 }
+}  // namespace riscv_isa_sim
