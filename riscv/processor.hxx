@@ -3,11 +3,11 @@
 #define _RISCV_PROCESSOR_H
 
 #include "config.h"
-#include "devices.h"
+#include "devices.hxx"
+#include "decode.hxx"
 #include <cstring>
 #include <vector>
 #include <map>
-#include "decode.hxx"
 
 namespace riscv_isa_sim {
 class processor_t;

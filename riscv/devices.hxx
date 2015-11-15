@@ -1,10 +1,11 @@
 #ifndef _RISCV_DEVICES_H
 #define _RISCV_DEVICES_H
 
-#include "decode.h"
+#include "decode.hxx"
 #include <map>
 #include <vector>
 
+namespace riscv_isa_sim {
 class abstract_device_t {
  public:
   virtual bool load(reg_t addr, size_t len, uint8_t* bytes) = 0;
@@ -30,5 +31,6 @@ class rom_device_t : public abstract_device_t {
  private:
   std::vector<char> data;
 };
+}  // namespace riscv_isa_sim
 
 #endif

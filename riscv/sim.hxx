@@ -5,11 +5,11 @@
 
 #include "mmu.hxx"
 #include "processor.hxx"
+#include "devices.hxx"
 
 #include <vector>
 #include <string>
 #include <memory>
-#include "devices.h"
 
 namespace riscv_isa_sim {
 class htif_isasim_t;

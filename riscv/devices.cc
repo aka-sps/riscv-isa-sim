@@ -1,5 +1,6 @@
-#include "devices.h"
+#include "devices.hxx"
 
+namespace riscv_isa_sim {
 void bus_t::add_device(reg_t addr, abstract_device_t* dev)
 {
   devices[-addr] = dev;
@@ -38,3 +39,4 @@ bool rom_device_t::store(reg_t addr, size_t len, const uint8_t* bytes)
 {
   return false;
 }
+}  // namespace riscv_isa_sim
