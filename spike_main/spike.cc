@@ -30,7 +30,7 @@ static void help()
   fprintf(stderr, "  --l2=<S>:<W>:<B>     B both powers of 2).\n");
   fprintf(stderr, "  --extension=<name> Specify RoCC Extension\n");
   fprintf(stderr, "  --extlib=<name>    Shared library to load\n");
-  exit(1);
+  exit(1);  ///< \bug Using of exit() in c++ prevents normal sequence of object destruction
 }
 }  // namespace riscv_isa_sim
 
@@ -66,7 +66,7 @@ int main(int argc, char** argv)
     void *lib = dlopen(s, RTLD_NOW | RTLD_GLOBAL);
     if (lib == NULL) {
       fprintf(stderr, "Unable to load extlib '%s': %s\n", s, dlerror());
-      exit(-1);
+      exit(-1);  ///< \bug Using of exit() in c++ prevents normal sequence of object destruction
     }
   });
 

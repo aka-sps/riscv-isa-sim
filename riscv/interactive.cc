@@ -158,7 +158,7 @@ void sim_t::interactive_run(const std::string& cmd, const std::vector<std::strin
 
 void sim_t::interactive_quit(const std::string& cmd, const std::vector<std::string>& args)
 {
-  exit(0);
+  exit(0);  ///< \bug Using of exit() in c++ prevents normal sequence of object destruction
 }
 
 reg_t sim_t::get_pc(const std::vector<std::string>& args)

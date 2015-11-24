@@ -15,7 +15,7 @@ volatile bool ctrlc_pressed = false;
 static void handle_signal(int sig)
 {
   if (ctrlc_pressed)
-    exit(-1);
+    exit(-1);  ///< \bug Using of exit() in c++ prevents normal sequence of object destruction
   ctrlc_pressed = true;
   signal(sig, &handle_signal);
 }

@@ -20,7 +20,7 @@ static void help()
   std::cerr << "  sets:ways:blocksize" << std::endl;
   std::cerr << "where sets, ways, and blocksize are positive integers, with" << std::endl;
   std::cerr << "sets and blocksize both powers of two and blocksize at least 8." << std::endl;
-  exit(1);
+  exit(1);  ///< \bug Using of exit() in c++ prevents normal sequence of object destruction
 }
 
 cache_sim_t* cache_sim_t::construct(const char* config, const char* name)

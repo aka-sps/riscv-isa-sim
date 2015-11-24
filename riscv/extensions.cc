@@ -25,12 +25,12 @@ std::function<extension_t*()> find_extension(const char* name)
     if (!dlopen(libname.c_str(), RTLD_LAZY)) {
       fprintf(stderr, "couldn't find extension '%s' (or library '%s')\n",
               name, libname.c_str());
-      exit(-1);
+      exit(-1);  ///< \bug Using of exit() in c++ prevents normal sequence of object destruction
     }
     if (!extensions().count(name)) {
       fprintf(stderr, "couldn't find extension '%s' in shared library '%s'\n",
               name, libname.c_str());
-      exit(-1);
+      exit(-1);  ///< \bug Using of exit() in c++ prevents normal sequence of object destruction
     }
   }
 
