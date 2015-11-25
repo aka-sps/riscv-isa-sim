@@ -1,14 +1,16 @@
 // See LICENSE for license details.
 #include "sim.hxx"
-#include "htif.hxx"
 
-#include "devicetree.h"
+#include "htif.hxx"
+#include "devicetree.hxx"
+
 #include <map>
 #include <iostream>
 #include <climits>
 #include <cstdlib>
 #include <cassert>
 #include <csignal>
+#include <new>
 
 namespace riscv_isa_sim {
 volatile bool ctrlc_pressed = false;
@@ -34,7 +36,7 @@ sim_t::sim_t(const char* isa, size_t nprocs, size_t mem_mb,
     memsz0 = 1L << (sizeof(size_t) == 8 ? 32 : 30);
 
   memsz = memsz0;
-  while ((mem = (char*)calloc(1, memsz)) == NULL)
+  while ((mem = new(std::nothrow) char[memsz]) == nullptr)
     memsz = memsz*10/11/quantum*quantum;
 
   if (memsz != memsz0)
@@ -54,7 +56,7 @@ sim_t::~sim_t()
   for (size_t i = 0; i < procs.size(); i++)
     delete procs[i];
   delete debug_mmu;
-  free(mem);
+  delete mem;
 }
 
 reg_t sim_t::get_scr(int which)
