@@ -57,16 +57,17 @@ void processor_t::step(size_t n)
     size_t instret = 0;
     reg_t pc = state.pc;
     mmu_t* _mmu = mmu;
-
-    #define advance_pc() \
-     if (unlikely(pc == PC_SERIALIZE)) { \
-       pc = state.pc; \
-       state.serialized = true; \
-       break; \
-     } else { \
-       state.pc = pc; \
-       instret++; \
-     }
+    auto advance_pc = [&]()->bool{
+      if (unlikely(pc == PC_SERIALIZE)) {
+        pc = state.pc;
+        state.serialized = true;
+        return false;
+      } else { \
+        state.pc = pc;
+        ++instret;
+        return true;
+      }
+    };
 
     try
     {
@@ -81,7 +82,9 @@ void processor_t::step(size_t n)
           if (!state.serialized)
             disasm(fetch.insn);
           pc = execute_insn(this, pc, fetch);
-          advance_pc();
+          if(!advance_pc()) {
+              break;
+          }
         }
       }
       else while (instret < n)
@@ -104,11 +107,15 @@ void processor_t::step(size_t n)
           #include "icache.h"
         }
 
-        advance_pc();
+        if(!advance_pc()) {
+            break;
+        }
         continue;
 
 miss:
-        advance_pc();
+        if(!advance_pc()) {
+            break;
+        }
         // refill I$ if it looks like there wasn't a taken branch
         if (pc > (ic_entry-1)->tag && pc <= (ic_entry-1)->tag + MAX_INSN_LENGTH)
           _mmu->refill_icache(pc, ic_entry);
