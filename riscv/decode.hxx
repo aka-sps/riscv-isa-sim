@@ -8,7 +8,7 @@
 #endif
 
 #include <cstdint>
-#include <string.h>
+#include <cstring>
 #include <strings.h>
 #include "encoding.h"
 #include "config.h"
