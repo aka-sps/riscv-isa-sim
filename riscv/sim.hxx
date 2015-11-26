@@ -17,6 +17,8 @@ class htif_isasim_t;
 // this class encapsulates the processors and memory in a RISC-V machine.
 class sim_t
 {
+  sim_t(sim_t const&) = delete;
+  sim_t& operator = (sim_t const&) = delete;
 public:
   sim_t(const char* isa, size_t _nprocs, size_t mem_mb,
         const std::vector<std::string>& htif_args);
