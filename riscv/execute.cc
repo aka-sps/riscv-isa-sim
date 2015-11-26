@@ -5,26 +5,26 @@
 #include <cassert>
 
 namespace riscv_isa_sim {
-static void commit_log_stash_privilege(state_t* state)
+static void commit_log_stash_privilege(state_t const& state)
 {
 #ifdef RISCV_ENABLE_COMMITLOG
-  state->last_inst_priv = get_field(state->mstatus, MSTATUS_PRV);
+  state->last_inst_priv = get_field(state.mstatus, MSTATUS_PRV);
 #endif
 }
 
-static void commit_log_print_insn(state_t* state, reg_t pc, insn_t insn)
+static void commit_log_print_insn(state_t const& state, reg_t pc, insn_t insn)
 {
 #ifdef RISCV_ENABLE_COMMITLOG
-  int32_t priv = state->last_inst_priv;
+  int32_t priv = state.last_inst_priv;
   uint64_t mask = (insn.length() == 8 ? uint64_t(0) : (uint64_t(1) << (insn.length() * 8))) - 1;
-  if (state->log_reg_write.addr) {
+  if (state.log_reg_write.addr) {
     fprintf(stderr, "%1d 0x%016" PRIx64 " (0x%08" PRIx64 ") %c%2" PRIu64 " 0x%016" PRIx64 "\n",
             priv,
             pc,
             insn.bits() & mask,
-            state->log_reg_write.addr & 1 ? 'f' : 'x',
-            state->log_reg_write.addr >> 1,
-            state->log_reg_write.data);
+            state.log_reg_write.addr & 1 ? 'f' : 'x',
+            state.log_reg_write.addr >> 1,
+            state.log_reg_write.data);
   } else {
     fprintf(stderr, "%1d 0x%016" PRIx64 " (0x%08" PRIx64 ")\n", priv, pc, insn.bits() & mask);
   }
