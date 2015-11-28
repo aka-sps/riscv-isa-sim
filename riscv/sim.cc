@@ -30,22 +30,20 @@ sim_t::sim_t(const char* isa, size_t nprocs, size_t mem_mb,
   signal(SIGINT, &handle_signal);
   // allocate target machine's memory, shrinking it as necessary
   // until the allocation succeeds
-  size_t memsz0 = (size_t)mem_mb << 20;
-  size_t quantum = 1L << 20;
-  if (memsz0 == 0)
-    memsz0 = 1L << (sizeof(size_t) == 8 ? 32 : 30);
+  size_t const memsz0 = mem_mb ? static_cast<size_t>(mem_mb) << 20 : 1LU << (sizeof(size_t) == 8 ? 32 : 30);
+  static size_t const quantum = 1UL << 20;
 
-  memsz = memsz0;
-  while ((mem = new(std::nothrow) char[memsz]) == nullptr)
-    memsz = memsz*10/11/quantum*quantum;
+  this->memsz = memsz0;
+  while (!(this->mem = new(std::nothrow) char[memsz]))
+    this->memsz = this->memsz * 10 / 11 / quantum * quantum;
 
-  if (memsz != memsz0)
+  if (this->memsz != memsz0)
     fprintf(stderr, "warning: only got %lu bytes of target mem (wanted %lu)\n",
-            (unsigned long)memsz, (unsigned long)memsz0);
+            static_cast<unsigned long>(memsz), static_cast<unsigned long>(memsz0));
 
-  debug_mmu = new mmu_t(mem, memsz);
+  this->debug_mmu = new mmu_t(mem, memsz);
 
-  for (size_t i = 0; i < procs.size(); i++)
+  for (size_t i = 0; i < procs.size(); ++i)
     procs[i] = new processor_t(isa, this, i);
 
   make_device_tree();

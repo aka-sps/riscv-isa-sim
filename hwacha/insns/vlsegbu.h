@@ -1,1 +1,1 @@
-VEC_SEG_LOAD(XPR, load_uint8, 1);
+VEC_SEG_LOAD(XPR, load<uint8_t>, 1);

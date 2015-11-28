@@ -1,3 +1,3 @@
 require_rvc;
 require_fp;
-FCRDS = mmu.load_int32(CRS1S+CIMM5*4);
+FCRDS = mmu.load<int32_t>(CRS1S+CIMM5*4);

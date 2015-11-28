@@ -2,13 +2,13 @@ require_supervisor_hwacha;
 reg_t addr = XS1;
 
 #define LOAD_B(addr) \
-  (addr += 1, p->get_mmu()->load_uint8(addr-1))
+  (addr += 1, p->get_mmu()->load<uint8_t>(addr-1))
 
 #define LOAD_W(addr) \
-  (addr += 4, p->get_mmu()->load_uint32(addr-4))
+  (addr += 4, p->get_mmu()->load<uint32_t>(addr-4))
 
 #define LOAD_D(addr) \
-  (addr += 8, p->get_mmu()->load_uint64(addr-8))
+  (addr += 8, p->get_mmu()->load<uint64_t>(addr-8))
 
 // to be compliant with the evac structure
 addr += 8;

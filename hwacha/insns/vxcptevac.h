@@ -2,15 +2,15 @@ require_supervisor_hwacha;
 reg_t addr = XS1;
 
 #define STORE_B(addr, value) \
-  p->get_mmu()->store_uint8(addr, value); \
+  p->get_mmu()->store<uint8_t>(addr, value); \
   addr += 1; \
 
 #define STORE_W(addr, value) \
-  p->get_mmu()->store_uint32(addr, value); \
+  p->get_mmu()->store<uint32_t>(addr, value); \
   addr += 4; \
 
 #define STORE_D(addr, value) \
-  p->get_mmu()->store_uint64(addr, value); \
+  p->get_mmu()->store<uint64_t>(addr, value); \
   addr += 8; \
 
 // to be compliant with the evac structure

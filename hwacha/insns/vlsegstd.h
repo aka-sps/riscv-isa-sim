@@ -1,1 +1,1 @@
-VEC_SEG_ST_LOAD(XPR, load_int64, XS2, 8);
+VEC_SEG_ST_LOAD(XPR, load<int64_t>, XS2, 8);

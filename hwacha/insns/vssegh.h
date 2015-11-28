@@ -1,1 +1,1 @@
-VEC_SEG_STORE(XPR, store_uint16, 2);
+VEC_SEG_STORE(XPR, store<uint16_t>, 2);

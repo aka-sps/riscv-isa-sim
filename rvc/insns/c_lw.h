@@ -1,2 +1,2 @@
 require_rvc;
-CRDS = mmu.load_int32(CRS1S+CIMM5*4);
+CRDS = mmu.load<int32_t>(CRS1S+CIMM5*4);
