@@ -3,11 +3,19 @@
 #include "mmu.h"
 #include "sim.h"
 #include "processor.h"
+#include <iostream>
+#include <iomanip>
+
+#define DBG_TLB_LVL 0 // 0 - disabled, 1 - walk, 2 - detailed
 
 mmu_t::mmu_t(char* _mem, size_t _memsz)
  : mem(_mem), memsz(_memsz), proc(NULL)
 {
+#ifdef HW_PAGEWALKER
   flush_tlb();
+#else
+  flush_hw_tlb();
+#endif // HW_PAGEWALKER
 }
 
 mmu_t::~mmu_t()
@@ -99,6 +107,7 @@ void mmu_t::refill_tlb(reg_t vaddr, reg_t paddr, access_type type)
   tlb_data[idx] = mem + paddr - vaddr;
 }
 
+#ifdef HW_PAGEWALKER
 reg_t mmu_t::walk(reg_t addr, bool supervisor, access_type type)
 {
   int levels, ptidxbits, ptesize;
@@ -146,6 +155,206 @@ reg_t mmu_t::walk(reg_t addr, bool supervisor, access_type type)
 
   return -1;
 }
+#else // HW_PAGEWALKER
+TLB::tlb_entry *mmu_t::search_tlbi(reg_t addr)
+{
+  reg_t tlbe_vaddr = addr & ~((1 << TLB::SV32_PAGE_SIZE_BITS) - 1);
+  unsigned tlbe_idx = (addr >> TLB::SV32_PAGE_SIZE_BITS) & (TLB::I_SETS - 1);
+
+#if (DBG_TLB_LVL > 1)
+  std::cerr << "<search_i " << std::hex << std::setfill('0') << std::setw(8) << addr
+            << ": " << std::setfill('0') << std::setw(8) << tlbe_vaddr << "=" << tlbe_idx << " ";
+#endif // DBG_TLB_LVL
+  TLB::tlb_entry *entry = tlbi + tlbe_idx;
+  for (unsigned i = 0; i < TLB::I_WAYS; ++i, entry += TLB::I_SETS) {
+    if ((entry->pattr & TLB::SV32_PAGE_VALID) && entry->vaddr == tlbe_vaddr) {
+#if (DBG_TLB_LVL > 1)
+      std::cerr << "found way#" << i << ">";
+#endif // DBG_TLB_LVL
+      return entry;
+    }
+  }
+
+#if (DBG_TLB_LVL > 1)
+  std::cerr << "miss>";
+#endif // DBG_TLB_LVL
+  return 0;
+}
+
+TLB::tlb_entry *mmu_t::search_tlbd(reg_t addr)
+{
+  reg_t tlbe_vaddr = addr & ~((1 << TLB::SV32_PAGE_SIZE_BITS) - 1);
+  unsigned tlbe_idx = (addr >> TLB::SV32_PAGE_SIZE_BITS) & (TLB::D_SETS - 1);
+
+#if (DBG_TLB_LVL > 1)
+  std::cerr << "<search_d " << std::hex << std::setfill('0') << std::setw(8) << addr
+            << ": " << std::setfill('0') << std::setw(8) << tlbe_vaddr << "=" << tlbe_idx << " ";
+#endif // DBG_TLB_LVL
+
+  TLB::tlb_entry *entry = tlbd + tlbe_idx;
+  for (unsigned i = 0; i < TLB::D_WAYS; ++i, entry += TLB::D_SETS) {
+    if ((entry->pattr & TLB::SV32_PAGE_VALID) && entry->vaddr == tlbe_vaddr) {
+#if (DBG_TLB_LVL > 1)
+      std::cerr << "found way#" << i << ">";
+#endif // DBG_TLB_LVL
+      return entry;
+    }
+  }
+
+#if (DBG_TLB_LVL > 1)
+  std::cerr << "miss>";
+#endif // DBG_TLB_LVL
+  return 0;
+}
+
+#if (DBG_TLB_LVL > 1)
+static void dbg_print_tbl(TLB::tlb_entry *tlb, unsigned tlb_sets, unsigned tlb_ways)
+{
+  TLB::tlb_entry *e = tlb;
+
+  for (unsigned i = 0; i < tlb_sets; ++i, ++e) {
+    std::cerr << std::setfill('0') << std::setw(3) << i << ":";
+    for (unsigned way = 0; way < tlb_ways; ++way) {
+      std::cerr << " " << std::hex
+                << std::setfill('0') << std::setw(8) << e[way * tlb_sets].vaddr << ","
+                << std::setfill('0') << std::setw(8) << e[way * tlb_sets].pattr << " ";
+    }
+    std::cerr << std::endl;
+  }
+}
+#else
+static void dbg_print_tbl(TLB::tlb_entry *tlb, unsigned tlb_sets, unsigned tlb_ways) {}
+#endif // DBG_TLB_LVL
+
+reg_t mmu_t::walk(reg_t addr, bool supervisor, access_type type)
+{
+#if (DBG_TLB_LVL > 0)
+  std::cerr << "<walk_tlb>:" << std::hex << addr
+            << " " << (supervisor ? "S" : "U")
+            << (type == LOAD ? "R" : (type == STORE ? "W" : "X")) << " ";
+#endif // DBG_TLB_LVL
+
+  TLB::tlb_entry *entry = 0;
+
+  if (type == FETCH) {
+    entry = search_tlbi(addr);
+  } else {
+    entry = search_tlbd(addr);
+  }
+
+  if (entry) {
+#if (DBG_TLB_LVL > 0)
+    std::cerr << "found at " << (type == FETCH ? entry - tlbi : entry - tlbd)
+              << ", perm: " << (TLB::check_tlbe_perm(entry->pattr, supervisor, type) ? "Y" : "N") << " ";
+#endif // DBG_TLB_LVL
+  }
+
+  if (entry && TLB::check_tlbe_perm(entry->pattr, supervisor, type)) {
+    // FIXME: set referenced and possibly dirty bits
+#if (DBG_TLB_LVL > 0)
+    std::cerr << std::hex << (TLB::tlbe_ppn(entry->pattr) << TLB::SV32_PAGE_SIZE_BITS) << std::endl;
+    if (type == FETCH)
+      dbg_print_tbl(tlbi, TLB::I_SETS, TLB::I_WAYS);
+    else
+      dbg_print_tbl(tlbd, TLB::D_SETS, TLB::D_WAYS);
+#endif // DBG_TLB_LVL
+    return TLB::tlbe_ppn(entry->pattr) << TLB::SV32_PAGE_SIZE_BITS;
+  }
+
+#if (DBG_TLB_LVL > 0)
+  std::cerr << "*MISS*" << std::endl;
+  if (type == FETCH)
+    dbg_print_tbl(tlbi, TLB::I_SETS, TLB::I_WAYS);
+  else
+    dbg_print_tbl(tlbd, TLB::D_SETS, TLB::D_WAYS);
+#endif // DBG_TLB_LVL
+  return -1;
+}
+
+static void refill_tlb_entry(TLB::tlb_entry *entry, reg_t pattr, reg_t vaddr)
+{
+  unsigned idx = (vaddr >> TLB::SV32_PAGE_SIZE_BITS) & (TLB::D_SETS - 1);
+
+#if (DBG_TLB_LVL > 0)
+  std::cerr << "set_tlb[" << idx << "]:"
+            << std::hex << " (" << entry->vaddr << ", " << entry->pattr << ")"
+            << " <- (" << vaddr << ", " << pattr << ")"
+            << std::endl;
+#endif // DBG_TLB_LVL
+  entry->pattr = pattr;
+  entry->vaddr = vaddr;
+}
+
+void mmu_t::tlbi_setup_entry(reg_t pattr)
+{
+  reg_t tlbe_vaddr = tlbi_vaddr & ~((1 << TLB::SV32_PAGE_SIZE_BITS) - 1);
+  unsigned tlbe_idx = (tlbi_vaddr >> TLB::SV32_PAGE_SIZE_BITS) & (TLB::I_SETS - 1);
+
+  // search existing entry
+  TLB::tlb_entry *entry = search_tlbi(tlbi_vaddr);
+  if (entry) {
+    // update existing entry
+    refill_tlb_entry(entry, pattr, tlbe_vaddr);
+    return;
+  }
+  // search empty entry
+  entry = tlbi + tlbe_idx;
+  for (unsigned i = 0; i < TLB::I_WAYS; ++i, entry += TLB::I_SETS) {
+    if (!(entry->pattr & TLB::SV32_PAGE_VALID)) {
+      // fill empty entry
+      refill_tlb_entry(entry, pattr, tlbe_vaddr);
+      return;
+    }
+  }
+  // roll entries in a ways dir and refill last way
+  entry = tlbi + tlbe_idx;
+  for (unsigned i = 1; i < TLB::I_WAYS; ++i, entry += TLB::I_SETS) {
+    *entry = *(entry + TLB::I_SETS);
+  }
+  // refill last entry
+  entry = tlbi + (TLB::I_WAYS - 1) * TLB::I_SETS + tlbe_idx;
+  refill_tlb_entry(entry, pattr, tlbe_vaddr);
+}
+
+void mmu_t::tlbd_setup_entry(reg_t pattr)
+{
+  reg_t tlbe_vaddr = tlbd_vaddr & ~((1 << TLB::SV32_PAGE_SIZE_BITS) - 1);
+  unsigned tlbe_idx = (tlbd_vaddr >> TLB::SV32_PAGE_SIZE_BITS) & (TLB::D_SETS - 1);
+
+  // search existing entry
+  TLB::tlb_entry *entry = search_tlbd(tlbd_vaddr);
+  if (entry) {
+    // update existing entry
+    refill_tlb_entry(entry, pattr, tlbe_vaddr);
+    return;
+  }
+  // search empty entry
+  entry = tlbd + tlbe_idx;
+  for (unsigned i = 0; i < TLB::D_WAYS; ++i, entry += TLB::D_SETS) {
+    if (!(entry->pattr & TLB::SV32_PAGE_VALID)) {
+      // fill empty entry
+      refill_tlb_entry(entry, pattr, tlbe_vaddr);
+      return;
+    }
+  }
+  // roll entries in a ways dir and refill last way
+  entry = tlbd + tlbe_idx;
+  for (unsigned i = 1; i < TLB::D_WAYS; ++i, entry += TLB::D_SETS) {
+    *entry = *(entry + TLB::D_SETS);
+  }
+  // refill last entry
+  entry = tlbd + (TLB::D_WAYS - 1) * TLB::D_SETS + tlbe_idx;
+  refill_tlb_entry(entry, pattr, tlbe_vaddr);
+}
+
+void mmu_t::flush_hw_tlb(void)
+{
+  memset(tlbi, 0, sizeof(tlbi));
+  memset(tlbd, 0, sizeof(tlbd));
+
+  flush_tlb();
+}
+#endif // HW_PAGEWALKER
 
 void mmu_t::register_memtracer(memtracer_t* t)
 {

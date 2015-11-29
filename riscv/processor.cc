@@ -374,6 +374,26 @@ void processor_t::set_csr(int which, reg_t val)
         state.tohost = val;
       break;
     case CSR_MFROMHOST: state.fromhost = val; break;
+#ifndef HW_PAGEWALKER
+  case TLB::CSR_I_PATTR:
+      mmu->tlbi_setup_entry(val);
+      break;
+  case TLB::CSR_I_VADDR:
+      mmu->tlbi_set_vaddr(val);
+      break;
+  case TLB::CSR_D_PATTR:
+      mmu->tlbd_setup_entry(val);
+      break;
+  case TLB::CSR_D_VADDR:
+      mmu->tlbd_set_vaddr(val);
+      break;
+  case TLB::CSR_I_ENTRY_SCAN:
+      mmu->tlbi_scan(val);
+      break;
+  case TLB::CSR_D_ENTRY_SCAN:
+      mmu->tlbd_scan(val);
+      break;
+#endif // !HW_PAGEWALKER
   }
 }
 
@@ -486,6 +506,23 @@ reg_t processor_t::get_csr(int which)
     case CSR_UARCH14:
     case CSR_UARCH15:
       return 0;
+#ifndef HW_PAGEWALKER
+  case TLB::CSR_I_PATTR:
+  case TLB::CSR_I_VADDR:
+  case TLB::CSR_D_PATTR:
+  case TLB::CSR_D_VADDR:
+  case TLB::CSR_I_ENTRY_SCAN:
+  case TLB::CSR_D_ENTRY_SCAN:
+      return 0;
+  case TLB::CSR_I_ENTRY_PATTR:
+      return mmu->tlbi_get_pattr();
+  case TLB::CSR_I_ENTRY_VADDR:
+      return mmu->tlbi_get_vaddr();
+  case TLB::CSR_D_ENTRY_PATTR:
+      return mmu->tlbd_get_pattr();
+  case TLB::CSR_D_ENTRY_VADDR:
+      return mmu->tlbd_get_vaddr();
+#endif // !HW_PAGEWALKER
   }
   throw trap_illegal_instruction();
 }
