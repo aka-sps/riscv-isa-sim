@@ -78,6 +78,10 @@ private:
   void interactive_mem(const std::string& cmd, const std::vector<std::string>& args);
   void interactive_str(const std::string& cmd, const std::vector<std::string>& args);
   void interactive_until(const std::string& cmd, const std::vector<std::string>& args);
+#ifndef HW_PAGEWALKER
+  void interactive_tlbi(const std::string& cmd, const std::vector<std::string>& args);
+  void interactive_tlbd(const std::string& cmd, const std::vector<std::string>& args);
+#endif // !HW_PAGEWALKER
   reg_t get_reg(const std::vector<std::string>& args);
   reg_t get_freg(const std::vector<std::string>& args);
   reg_t get_mem(const std::vector<std::string>& args);

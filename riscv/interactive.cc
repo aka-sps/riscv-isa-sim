@@ -75,6 +75,10 @@ void sim_t::interactive()
   funcs["q"] = funcs["quit"];
   funcs["help"] = &sim_t::interactive_help;
   funcs["h"] = funcs["help"];
+#ifndef HW_PAGEWALKER
+  funcs["tlbi"] = &sim_t::interactive_tlbi;
+  funcs["tlbd"] = &sim_t::interactive_tlbd;
+#endif // !HW_PAGEWALKER
 
   while (!htif->done())
   {
@@ -124,6 +128,10 @@ void sim_t::interactive_help(const std::string& cmd, const std::vector<std::stri
     "run [count]                     # Resume noisy execution (until CTRL+C, or [count] insns)\n"
     "r [count]                         Alias for run\n"
     "rs [count]                      # Resume silent execution (until CTRL+C, or [count] insns)\n"
+#ifndef HW_PAGEWALKER
+    "tlbi [core]                     # Show current hardware instruction TLB\n"
+    "tlbd [core]                     # Show current hardware data TLB\n"
+#endif // !HW_PAGEWALKER
     "quit                            # End the simulation\n"
     "q                                 Alias for quit\n"
     "help                            # This screen!\n"
@@ -312,7 +320,7 @@ void sim_t::interactive_until(const std::string& cmd, const std::vector<std::str
   reg_t val = strtol(args[args.size()-1].c_str(),NULL,16);
   if(val == LONG_MAX)
     val = strtoul(args[args.size()-1].c_str(),NULL,16);
-  
+
   std::vector<std::string> args2;
   args2 = std::vector<std::string>(args.begin()+1,args.end()-1);
 
@@ -343,3 +351,31 @@ void sim_t::interactive_until(const std::string& cmd, const std::vector<std::str
     step(1);
   }
 }
+
+#ifndef HW_PAGEWALKER
+void sim_t::interactive_tlbi(const std::string& cmd, const std::vector<std::string>& args)
+{
+  processor_t *p;
+
+  if (args.size()) {
+    p = get_core(args[0]);
+  } else {
+    p = get_core(0);
+  }
+
+  p->get_mmu()->dbg_print_tlbi();
+}
+
+void sim_t::interactive_tlbd(const std::string& cmd, const std::vector<std::string>& args)
+{
+  processor_t *p;
+
+  if (args.size()) {
+    p = get_core(args[0]);
+  } else {
+    p = get_core(0);
+  }
+
+  p->get_mmu()->dbg_print_tlbd();
+}
+#endif // !HW_PAGEWALKER

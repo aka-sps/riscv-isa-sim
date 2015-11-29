@@ -207,8 +207,7 @@ TLB::tlb_entry *mmu_t::search_tlbd(reg_t addr)
   return 0;
 }
 
-#if (DBG_TLB_LVL > 1)
-static void dbg_print_tbl(TLB::tlb_entry *tlb, unsigned tlb_sets, unsigned tlb_ways)
+void mmu_t::dbg_print_tlb(TLB::tlb_entry *tlb, unsigned tlb_sets, unsigned tlb_ways)
 {
   TLB::tlb_entry *e = tlb;
 
@@ -222,9 +221,6 @@ static void dbg_print_tbl(TLB::tlb_entry *tlb, unsigned tlb_sets, unsigned tlb_w
     std::cerr << std::endl;
   }
 }
-#else
-static void dbg_print_tbl(TLB::tlb_entry *tlb, unsigned tlb_sets, unsigned tlb_ways) {}
-#endif // DBG_TLB_LVL
 
 reg_t mmu_t::walk(reg_t addr, bool supervisor, access_type type)
 {
@@ -242,21 +238,21 @@ reg_t mmu_t::walk(reg_t addr, bool supervisor, access_type type)
     entry = search_tlbd(addr);
   }
 
-  if (entry) {
 #if (DBG_TLB_LVL > 0)
+  if (entry) {
     std::cerr << "found at " << (type == FETCH ? entry - tlbi : entry - tlbd)
               << ", perm: " << (TLB::check_tlbe_perm(entry->pattr, supervisor, type) ? "Y" : "N") << " ";
-#endif // DBG_TLB_LVL
   }
+#endif // DBG_TLB_LVL
 
   if (entry && TLB::check_tlbe_perm(entry->pattr, supervisor, type)) {
     // FIXME: set referenced and possibly dirty bits
 #if (DBG_TLB_LVL > 0)
     std::cerr << std::hex << (TLB::tlbe_ppn(entry->pattr) << TLB::SV32_PAGE_SIZE_BITS) << std::endl;
     if (type == FETCH)
-      dbg_print_tbl(tlbi, TLB::I_SETS, TLB::I_WAYS);
+      dbg_print_tlbi();
     else
-      dbg_print_tbl(tlbd, TLB::D_SETS, TLB::D_WAYS);
+      dbg_print_tlbd();
 #endif // DBG_TLB_LVL
     return TLB::tlbe_ppn(entry->pattr) << TLB::SV32_PAGE_SIZE_BITS;
   }
@@ -264,9 +260,9 @@ reg_t mmu_t::walk(reg_t addr, bool supervisor, access_type type)
 #if (DBG_TLB_LVL > 0)
   std::cerr << "*MISS*" << std::endl;
   if (type == FETCH)
-    dbg_print_tbl(tlbi, TLB::I_SETS, TLB::I_WAYS);
+    dbg_print_tlbi();
   else
-    dbg_print_tbl(tlbd, TLB::D_SETS, TLB::D_WAYS);
+    dbg_print_tlbd();
 #endif // DBG_TLB_LVL
   return -1;
 }

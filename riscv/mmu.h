@@ -330,6 +330,7 @@ private:
   TLB::tlb_entry *search_tlbd(reg_t addr);
   /* void refill_tlbi_entry(TLB::tlb_entry *entry, reg_t pattr, reg_t vaddr); */
   /* void refill_tlbd_entry(TLB::tlb_entry *entry, reg_t pattr, reg_t vaddr); */
+  void dbg_print_tlb(TLB::tlb_entry *tlb, unsigned tlb_sets, unsigned tlb_ways);
 #endif // !HW_PAGEWALKER
 
   // finish translation on a TLB miss and upate the TLB
@@ -387,6 +388,15 @@ private:
   }
   reg_t tlbd_get_vaddr(void) {
     return tlbd_info.vaddr;
+  }
+  // print content of TLBs to std::cerr
+  void dbg_print_tlbi(void)
+  {
+      dbg_print_tlb(tlbi, TLB::I_SETS, TLB::I_WAYS);
+  }
+  void dbg_print_tlbd(void)
+  {
+      dbg_print_tlb(tlbd, TLB::D_SETS, TLB::D_WAYS);
   }
 #endif // !HW_PAGEWALKER
 };
