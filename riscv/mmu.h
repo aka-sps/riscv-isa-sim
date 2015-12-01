@@ -9,7 +9,8 @@
 #include "config.h"
 #include "processor.h"
 #include "memtracer.h"
-#include <stdlib.h>
+#include <cstdlib>
+#include <cstdint>
 #include <vector>
 
 // virtual memory configuration
@@ -34,6 +35,16 @@ struct icache_entry_t {
 // Implementation of TLB subsystem
 namespace TLB {
 
+  // FIXME: support 64bit mode
+  typedef uint32_t virt_addr;
+  typedef uint64_t phys_addr;
+  typedef uint32_t page_attr;
+
+  struct tlb_entry {
+    virt_addr vaddr;
+    page_attr pattr;
+  };
+
   enum TLB_constants {
     I_SETS = 8,
     I_WAYS = 4,
@@ -44,7 +55,7 @@ namespace TLB {
   };
 
   enum TLB_page_consts {
-    SV32_PAGE_SIZE_BITS = 12,
+    SV32_PAGESZ_BITS = 12,
   };
 
   // TODO: add compatibility with Rocket PTE ???
@@ -53,17 +64,17 @@ namespace TLB {
     SV32_PAGE_PPN_BITS = 20,
     SV32_PAGE_PPN_OFFS = 9, // physical page number
     SV32_PAGE_PPN = ((1 << SV32_PAGE_PPN_BITS) - 1) << SV32_PAGE_PPN_OFFS,
-    SV32_PAGE_TYPE_BITS = 4,
-    SV32_PAGE_TYPE_OFFS = 5, // page type
-    SV32_PAGE_TYPE = (((1 << SV32_PAGE_TYPE_BITS) - 1) << SV32_PAGE_TYPE_OFFS),
-    SV32_PAGE_MP_BITS = 1, // Megapage (superpage)
-    SV32_PAGE_MP_OFFS = 4,
+    SV32_PAGE_MP_BITS = 1, // megapage
+    SV32_PAGE_MP_OFFS = 8,
     SV32_PAGE_NC_BITS = 1, // non cachable
-    SV32_PAGE_NC_OFFS = 3,
+    SV32_PAGE_NC_OFFS = 7,
     SV32_PAGE_D_BITS = 1, // dirty (occured write)
-    SV32_PAGE_D_OFFS = 2,
+    SV32_PAGE_D_OFFS = 6,
     SV32_PAGE_R_BITS = 1, // referenced (occured any access)
-    SV32_PAGE_R_OFFS = 1,
+    SV32_PAGE_R_OFFS = 5,
+    SV32_PAGE_TYPE_BITS = 4,
+    SV32_PAGE_TYPE_OFFS = 1, // page type
+    SV32_PAGE_TYPE = (((1 << SV32_PAGE_TYPE_BITS) - 1) << SV32_PAGE_TYPE_OFFS),
     SV32_PAGE_V_BITS = 1, // valid entry
     SV32_PAGE_V_OFFS = 0,
     SV32_PAGE_VALID = (((1 << SV32_PAGE_V_BITS) - 1) << SV32_PAGE_V_OFFS),
@@ -111,7 +122,7 @@ namespace TLB {
   };
 
   // check TLB entry permissions
-  inline bool check_tlbe_perm(reg_t tlbe, bool supervisor, access_type type) {
+  inline bool check_tlbe_perm(page_attr tlbe, bool supervisor, access_type type) {
     unsigned tlb_type = (tlbe & SV32_PAGE_TYPE) >> SV32_PAGE_TYPE_OFFS;
     if (type == LOAD) {
       if (supervisor)
@@ -132,8 +143,12 @@ namespace TLB {
   }
 
   // extract physical page number
-  inline reg_t tlbe_ppn(reg_t tlbe) {
+  inline unsigned tlbe_ppn(page_attr tlbe) {
     return (tlbe & SV32_PAGE_PPN) >> SV32_PAGE_PPN_OFFS;
+  }
+  // extract physical address
+  inline phys_addr tlbe_phys_addr(page_attr tlbe) {
+    return tlbe_ppn(tlbe) << SV32_PAGESZ_BITS;
   }
 
   // TODO: use CSR_MBADADDR instead of TLB::CSR_I_VADDR and TLB::CSR_D_VADDR
@@ -152,27 +167,6 @@ namespace TLB {
     CSR_D_ENTRY_PATTR = 0x798, // DTLB entry: page attr
     CSR_D_ENTRY_VADDR = 0x799, // DTLB entry: vaddr
   };
-
-  struct tlb_entry {
-    reg_t vaddr;
-    reg_t pattr;
-  };
-
-  /* static inline reg_t vaddri2tag(reg_t vaddr) { */
-  /*   return vaddr >> SV32_VADDR_TAG_OFFS; */
-  /* } */
-
-  /* static inline reg_t vaddrd2tag(reg_t vaddr) { */
-  /*   return */
-  /* } */
-
-  /* static inline unsigned vaddri2idx(reg_t vaddr) { */
-  /*   return */
-  /* } */
-
-  /* static inline unsigned vaddrd2idx(reg_t vaddr) { */
-  /*   return */
-  /* } */
 }
 #endif // !HW_PAGEWALKER
 
@@ -323,11 +317,11 @@ private:
   TLB::tlb_entry tlbi_info;
   TLB::tlb_entry tlbd_info;
   // temp for setup tlbX entry
-  reg_t tlbi_vaddr;
-  reg_t tlbd_vaddr;
+  TLB::virt_addr tlbi_vaddr;
+  TLB::virt_addr tlbd_vaddr;
 
-  TLB::tlb_entry *search_tlbi(reg_t addr);
-  TLB::tlb_entry *search_tlbd(reg_t addr);
+  TLB::tlb_entry *search_tlbi(TLB::virt_addr addr);
+  TLB::tlb_entry *search_tlbd(TLB::virt_addr addr);
   /* void refill_tlbi_entry(TLB::tlb_entry *entry, reg_t pattr, reg_t vaddr); */
   /* void refill_tlbd_entry(TLB::tlb_entry *entry, reg_t pattr, reg_t vaddr); */
   void dbg_print_tlb(TLB::tlb_entry *tlb, unsigned tlb_sets, unsigned tlb_ways);
@@ -360,14 +354,14 @@ private:
   // flush simulated TLB
   void flush_hw_tlb(void);
   // setup tlbX entry (use latched vaddr)
-  void tlbi_setup_entry(reg_t pattr);
-  void tlbd_setup_entry(reg_t pattr);
+  void tlbi_setup_entry(TLB::virt_addr pattr);
+  void tlbd_setup_entry(TLB::virt_addr pattr);
   // latch tlbX vaddr (for setup tlbX)
   void tlbi_set_vaddr(reg_t val) {
-    tlbi_vaddr = val;
+    tlbi_vaddr = static_cast<TLB::virt_addr>(val);
   }
   void tlbd_set_vaddr(reg_t val) {
-    tlbd_vaddr = val;
+    tlbd_vaddr = static_cast<TLB::virt_addr>(val);
   }
   // latch selected tlb entry
   void tlbi_scan(reg_t idx) {
@@ -378,16 +372,16 @@ private:
   }
   // access to latched tlb entry
   reg_t tlbi_get_pattr(void) {
-    return tlbi_info.pattr;
+    return static_cast<reg_t>(tlbi_info.pattr);
   }
   reg_t tlbi_get_vaddr(void) {
-    return tlbi_info.vaddr;
+    return static_cast<reg_t>(tlbi_info.vaddr);
   }
   reg_t tlbd_get_pattr(void) {
-    return tlbd_info.pattr;
+    return static_cast<reg_t>(tlbd_info.pattr);
   }
   reg_t tlbd_get_vaddr(void) {
-    return tlbd_info.vaddr;
+    return static_cast<reg_t>(tlbd_info.vaddr);
   }
   // print content of TLBs to std::cerr
   void dbg_print_tlbi(void)
