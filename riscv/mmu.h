@@ -56,22 +56,32 @@ namespace TLB {
 
   enum TLB_page_consts {
     SV32_PAGESZ_BITS = 12,
+    SV32_MPAGESZ_BITS = 22,
+    SV32_PPN_BITS = 20,
+    SV32_MPPN_BITS = 10,
   };
 
   // TODO: add compatibility with Rocket PTE ???
   // move type field to bit#1
   enum TLB_page_bits {
+    SV32_PAGE_MPPN_BITS = 10,
+    SV32_PAGE_MPPN_OFFS = 19, // physical page number (megapage)
+    SV32_PAGE_MPPN = ((1 << SV32_PAGE_MPPN_BITS) - 1) << SV32_PAGE_MPPN_OFFS,
     SV32_PAGE_PPN_BITS = 20,
     SV32_PAGE_PPN_OFFS = 9, // physical page number
     SV32_PAGE_PPN = ((1 << SV32_PAGE_PPN_BITS) - 1) << SV32_PAGE_PPN_OFFS,
     SV32_PAGE_MP_BITS = 1, // megapage
     SV32_PAGE_MP_OFFS = 8,
+    SV32_PAGE_MP = (((1 << SV32_PAGE_MP_BITS) - 1) << SV32_PAGE_MP_OFFS),
     SV32_PAGE_NC_BITS = 1, // non cachable
     SV32_PAGE_NC_OFFS = 7,
+    SV32_PAGE_NC = (((1 << SV32_PAGE_NC_BITS) - 1) << SV32_PAGE_NC_OFFS),
     SV32_PAGE_D_BITS = 1, // dirty (occured write)
     SV32_PAGE_D_OFFS = 6,
+    SV32_PAGE_D = (((1 << SV32_PAGE_D_BITS) - 1) << SV32_PAGE_D_OFFS),
     SV32_PAGE_R_BITS = 1, // referenced (occured any access)
     SV32_PAGE_R_OFFS = 5,
+    SV32_PAGE_R = (((1 << SV32_PAGE_R_BITS) - 1) << SV32_PAGE_R_OFFS),
     SV32_PAGE_TYPE_BITS = 4,
     SV32_PAGE_TYPE_OFFS = 1, // page type
     SV32_PAGE_TYPE = (((1 << SV32_PAGE_TYPE_BITS) - 1) << SV32_PAGE_TYPE_OFFS),
@@ -121,9 +131,47 @@ namespace TLB {
     | (1 << PTE_SRX_URX) | (1 << PTE_SRWX_URWX),
   };
 
+  // extract megapage flag
+  inline bool tlbe_megapage(page_attr pattr) {
+    return (pattr & SV32_PAGE_MP) != 0;
+  }
+  // extract physical page number
+  inline unsigned tlbe_ppn(page_attr pattr) {
+    return tlbe_megapage(pattr) ? ((pattr & SV32_PAGE_MPPN) >> SV32_PAGE_MPPN_OFFS)
+      : ((pattr & SV32_PAGE_PPN) >> SV32_PAGE_PPN_OFFS);
+  }
+  // extract physical address base
+  inline phys_addr tlbe_phys_addr(page_attr pattr) {
+    return tlbe_ppn(pattr) << (tlbe_megapage(pattr) ? SV32_MPAGESZ_BITS : SV32_PAGESZ_BITS);
+  }
+  // extract type
+  inline unsigned tlbe_type(page_attr pattr) {
+    return (pattr & SV32_PAGE_TYPE) >> SV32_PAGE_TYPE_OFFS;
+  }
+  // extract idx+tag from vaddr
+  inline virt_addr tlbe_tag(virt_addr vaddr, bool megapage) {
+    return vaddr >> (megapage ? SV32_MPAGESZ_BITS : TLB::SV32_PAGESZ_BITS);
+  }
+  // extract vaddr base from vaddr
+  inline virt_addr tlbe_vaddr_base(virt_addr vaddr, bool megapage) {
+    return vaddr & ~((1 << (megapage ? SV32_MPAGESZ_BITS : SV32_PAGESZ_BITS)) - 1);
+  }
+  // extract vaddr offset from vaddr
+  inline virt_addr tlbe_vaddr_offs(virt_addr vaddr, bool megapage) {
+    return vaddr & ((1 << (megapage ? SV32_MPAGESZ_BITS : SV32_PAGESZ_BITS)) - 1);
+  }
+  /* // extract idx+tag from vaddr */
+  /* inline virt_addr tlbe_tag(virt_addr vaddr, bool megapage = false) { */
+  /*   return vaddr >> (megapage ? SV32_MPAGESZ_BITS : TLB::SV32_PAGESZ_BITS); */
+  /* } */
+  /* // extract entry index from vaddr */
+  /* inline unsigned tlbe_idx(virt_addr vaddr, unsigned idx_mask, bool megapage = false) { */
+  /*   return tlbe_tagidx(vaddr, megapage) & idx_mask; */
+  /* } */
+
   // check TLB entry permissions
   inline bool check_tlbe_perm(page_attr tlbe, bool supervisor, access_type type) {
-    unsigned tlb_type = (tlbe & SV32_PAGE_TYPE) >> SV32_PAGE_TYPE_OFFS;
+    unsigned tlb_type = tlbe_type(tlbe);
     if (type == LOAD) {
       if (supervisor)
         return ((PTE_TYPE_MASK_SR >> tlb_type) & 1);
@@ -140,15 +188,6 @@ namespace TLB {
       else
         return ((PTE_TYPE_MASK_UX >> tlb_type) & 1);
     }
-  }
-
-  // extract physical page number
-  inline unsigned tlbe_ppn(page_attr tlbe) {
-    return (tlbe & SV32_PAGE_PPN) >> SV32_PAGE_PPN_OFFS;
-  }
-  // extract physical address
-  inline phys_addr tlbe_phys_addr(page_attr tlbe) {
-    return tlbe_ppn(tlbe) << SV32_PAGESZ_BITS;
   }
 
   // TODO: use CSR_MBADADDR instead of TLB::CSR_I_VADDR and TLB::CSR_D_VADDR
