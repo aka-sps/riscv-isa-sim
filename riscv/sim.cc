@@ -224,7 +224,10 @@ void sim_t::make_device_tree()
 
     devicetree.reset(new rom_device_t(dt.finalize()));
     bus.add_device(memsz, devicetree.get());
-    this->vcs.reset(new vsim_device(0xFEED0000u));
-    bus.add_device(0xFEED0000u, this->vcs.get());
+
+    static reg_t const vcs_address = 0xFEED0000u;
+    assert(cpu_addr <= vcs_address);
+    this->vcs.reset(new vsim_device(vcs_address));
+    bus.add_device(vcs_address, this->vcs.get());
 }
 }  // namespace riscv_isa_sim
