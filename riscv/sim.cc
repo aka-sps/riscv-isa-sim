@@ -31,6 +31,7 @@ public:
     virtual bool
         store(reg_t addr, size_t len, const uint8_t* bytes) override
     {
+        auto& vcs = spike_vcs_TL::vcs_device_agent::instance();
         vcs.store(addr + base_address, len, bytes);
         return true;
     }
