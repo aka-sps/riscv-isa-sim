@@ -87,7 +87,7 @@ class Server
             struct sockaddr_in saddr;
             saddr.sin_family = AF_INET;
             saddr.sin_addr.s_addr = ::htonl(INADDR_ANY);
-            saddr.sin_port = ::htons(a_port);
+            saddr.sin_port = htons(a_port);
             if (::bind(this->m_socket, reinterpret_cast<struct sockaddr*>(&saddr), sizeof saddr) < 0)
                 throw std::runtime_error("could not bind to port " + std::to_string(a_port));
         }
@@ -104,11 +104,9 @@ class Server
             for (;;) {
                 std::vector<uint8_t> buf(a_len);
                 this->m_addrlen = sizeof this->m_saddr;
-                // LOGGER << "recvfrom..." << std::endl;
                 ssize_t const size = ::recvfrom(this->m_socket, &buf[0], buf.size(), 0, src_addr, addrlen);
                 if (size >= 0) {
                     buf.resize(size);
-                    // LOGGER << "...recvfrom receive " << size << " bytes" << std::endl;
                     return buf;
                 }
             }
@@ -120,7 +118,7 @@ class Server
             struct sockaddr const* dest_addr = reinterpret_cast<struct sockaddr const*>(&this->m_saddr);
             socklen_t addrlen = this->m_addrlen;
             do {
-            } while (::sendto(this->m_socket, &buf[0], buf.size(), 0, dest_addr, addrlen) != buf.size());
+            } while (::sendto(this->m_socket, &buf[0], buf.size(), 0, dest_addr, addrlen) != ssize_t(buf.size()));
         }
 
     private:
@@ -139,7 +137,6 @@ public:
     void
         send_ack()const
     {
-        // LOGGER << *m_p_ack << std::endl;
         this->m_socket.send(m_p_ack->serialize());
     }
     std::shared_ptr<Request const>
@@ -155,7 +152,6 @@ public:
             } else {
                 this->m_p_req = p_req;
                 this->m_p_ack.reset();
-                // LOGGER << "Receive: " << *this->m_p_req << std::endl;
                 break;
             }
         }
@@ -190,7 +186,7 @@ class Client
         {
             this->m_saddr.sin_family = AF_INET;
             this->m_saddr.sin_addr.s_addr = ::htonl(INADDR_LOOPBACK);
-            this->m_saddr.sin_port = ::htons(a_port);
+            this->m_saddr.sin_port = htons(a_port);
         }
 
         ~Socket()
@@ -213,7 +209,6 @@ class Client
             tmot.tv_sec = 1;
             tmot.tv_usec = 0;
 
-            // LOGGER << "Select..." << std::endl;
             int const ready = ::select(this->m_socket + 1, &rset, nullptr, &eset, &tmot);
             typedef std::shared_ptr<std::vector<uint8_t> > result_type;
             if (ready != 1 || !FD_ISSET(this->m_socket, &rset)) {
@@ -222,7 +217,6 @@ class Client
             }
             result_type res(new std::vector<uint8_t>(a_len));
             std::vector<uint8_t>& buf = *res;
-            // LOGGER << "recvfrom..." << std::endl;
             ssize_t const size = ::recvfrom(this->m_socket, &buf[0], buf.size(), 0, nullptr, 0);
             if (size < 0) {
                 LOGGER << "...recvfrom failure: " << size << std::endl;
@@ -262,7 +256,6 @@ public:
         this->m_p_req = Request::create(this->m_sn, a_cmd, a_address, a_size, a_data);
         for (;;) {
             this->m_socket.send(this->m_p_req->serialize());
-            // LOGGER << "Try to recv..." << std::endl;
             auto const pkt = this->m_socket.recv();
             if (!pkt) {
                 LOGGER << "No answer: " << *this->m_p_req << std::endl;
@@ -270,7 +263,7 @@ public:
             }
             auto const ack = ACK::deserialize(*pkt);
             if (ack && ack->m_sn == this->m_sn) {
-                LOGGER << *this->m_p_req << " ==> " << *ack << std::endl;
+                // LOGGER << *this->m_p_req << " ==> " << *ack << std::endl;
                 return ack;
             }
         }
