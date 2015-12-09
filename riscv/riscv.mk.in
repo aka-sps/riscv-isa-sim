@@ -22,6 +22,8 @@ riscv_hdrs = \
 	rocc.hxx \
 	insn_template.hxx \
 	mulhi.hxx \
+	spike_client.hxx \
+	spike_vcs_TL.hxx \
 
 riscv_precompiled_hdrs = \
 	insn_template.hxx \
@@ -41,6 +43,9 @@ riscv_srcs = \
 	rocc.cc \
 	regnames.cc \
 	devices.cc \
+	spike_client.cc \
+	spike_vcs_TL.cc \
+	spike_vcs_TL_client.cc \
 	$(riscv_gen_srcs) \
 
 riscv_test_srcs =
