@@ -48,6 +48,7 @@ private:
   mmu_t* debug_mmu;  // debug port into main memory
   std::vector<processor_t*> procs;
   std::unique_ptr<rom_device_t> devicetree;
+  std::unique_ptr<abstract_device_t> vcs;
   bus_t bus;
 
   processor_t* get_core(const std::string& i);

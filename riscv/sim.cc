@@ -99,8 +99,6 @@ int sim_t::run()
         set_procs_debug(true);
     using namespace spike_vcs_TL;
     try {
-        this->bus.add_device(this->memsz, new vsim_device(this->memsz));
-        this->bus.add_device(0xFEED0000u, new vsim_device(0xFEED0000u));
         auto& vcs = spike_vcs_TL::vcs_device_agent::instance();
         vcs.wait_while_reset_is_active();
         while (htif->tick()) {
@@ -226,5 +224,7 @@ void sim_t::make_device_tree()
 
     devicetree.reset(new rom_device_t(dt.finalize()));
     bus.add_device(memsz, devicetree.get());
+    this->vcs.reset(new vsim_device(0xFEED0000u));
+    bus.add_device(0xFEED0000u, this->vcs.get());
 }
 }  // namespace riscv_isa_sim
