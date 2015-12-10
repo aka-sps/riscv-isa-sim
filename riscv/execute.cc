@@ -49,6 +49,7 @@ static reg_t execute_insn(processor_t* p, reg_t pc, insn_fetch_t fetch)
     commit_log_print_insn(p->get_state(), pc, fetch.insn);
     p->update_histogram(pc);
   }
+  spike_vcs_TL::vcs_device_agent::instance().end_of_clock();
   return npc;
 }
 
@@ -96,9 +97,8 @@ void processor_t::step(size_t n)
 
         #define ICACHE_ACCESS(i) { \
           insn_fetch_t fetch = ic_entry->data; \
-          ic_entry++; \
+          ++ic_entry; \
           pc = execute_insn(this, pc, fetch); \
-          spike_vcs_TL::vcs_device_agent::instance().end_of_clock(); \
           if (i == mmu_t::ICACHE_ENTRIES-1) break; \
           if (unlikely(ic_entry->tag != pc)) goto miss; \
           if (unlikely(instret+1 == n)) break; \
