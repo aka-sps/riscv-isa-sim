@@ -130,8 +130,7 @@ void sim_t::step(size_t n)
 
             htif->tick();
         }
-        auto& vcs = spike_vcs_TL::vcs_device_agent::instance();
-        vcs.end_of_clock();
+        spike_vcs_TL::vcs_device_agent::instance().end_of_clock();
     }
 }
 

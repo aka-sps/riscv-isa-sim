@@ -2,6 +2,8 @@
 
 #include "processor.hxx"
 #include "mmu.hxx"
+#include "spike_client.hxx"
+
 #include <cassert>
 
 namespace riscv_isa_sim {
@@ -62,7 +64,7 @@ void processor_t::step(size_t n)
         pc = state.pc;
         state.serialized = true;
         return false;
-      } else { \
+      } else {
         state.pc = pc;
         ++instret;
         return true;
@@ -96,10 +98,11 @@ void processor_t::step(size_t n)
           insn_fetch_t fetch = ic_entry->data; \
           ic_entry++; \
           pc = execute_insn(this, pc, fetch); \
+          spike_vcs_TL::vcs_device_agent::instance().end_of_clock(); \
           if (i == mmu_t::ICACHE_ENTRIES-1) break; \
           if (unlikely(ic_entry->tag != pc)) goto miss; \
           if (unlikely(instret+1 == n)) break; \
-          instret++; \
+          ++instret; \
           state.pc = pc; \
         }
 
