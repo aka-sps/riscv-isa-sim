@@ -1,4 +1,12 @@
-// See LICENSE for license details.
+/// @file
+/// @brief spike with vcs agent support
+///
+/// This branch setup UDP communication with vcs agent and emulate 
+/// empty clocks,
+/// read and write transactions
+/// to external memory on external bus.
+///
+/// See LICENSE for license details.
 
 #include "processor.hxx"
 #include "mmu.hxx"
