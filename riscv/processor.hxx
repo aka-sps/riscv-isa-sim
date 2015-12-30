@@ -2,13 +2,14 @@
 #ifndef _RISCV_PROCESSOR_H
 #define _RISCV_PROCESSOR_H
 
-#include "decode.h"
 #include "config.h"
-#include "devices.h"
+#include "devices.hxx"
+#include "decode.hxx"
 #include <cstring>
 #include <vector>
 #include <map>
 
+namespace riscv_isa_sim {
 class processor_t;
 class mmu_t;
 typedef reg_t (*insn_func_t)(processor_t*, insn_t, reg_t);
@@ -75,6 +76,8 @@ struct state_t
 // this class represents one processor in a RISC-V machine.
 class processor_t : public abstract_device_t
 {
+  processor_t(processor_t const&) = delete;
+  processor_t& operator = (processor_t const&) = delete;
 public:
   processor_t(const char* isa, sim_t* sim, uint32_t id);
   ~processor_t();
@@ -88,11 +91,13 @@ public:
   void raise_interrupt(reg_t which);
   reg_t get_csr(int which);
   mmu_t* get_mmu() { return mmu; }
-  state_t* get_state() { return &state; }
-  extension_t* get_extension() { return ext; }
-  bool supports_extension(unsigned char ext) {
-    if (ext >= 'a' && ext <= 'z') ext += 'A' - 'a';
-    return ext >= 'A' && ext <= 'Z' && ((cpuid >> (ext - 'A')) & 1);
+  state_t const& get_state()const { return state; }
+  state_t& get_state() { return state; }
+  extension_t* get_extension()const { return this->ext; }
+  bool supports_extension(unsigned char ext)const {
+    if (ext >= 'a' && ext <= 'z')
+      ext += 'A' - 'a';
+    return ext >= 'A' && ext <= 'Z' && ((this->cpuid >> (ext - 'A')) & 1);
   }
   void push_privilege_stack();
   void pop_privilege_stack();
@@ -108,7 +113,7 @@ public:
 
 private:
   sim_t* sim;
-  mmu_t* mmu; // main memory is always accessed via the mmu
+  mmu_t* mmu;  ///< main memory is always accessed via the mmu
   extension_t* ext;
   disassembler_t* disassembler;
   state_t state;
@@ -148,5 +153,5 @@ reg_t illegal_instruction(processor_t* p, insn_t insn, reg_t pc);
   extern reg_t rv32_##name(processor_t*, insn_t, reg_t); \
   extern reg_t rv64_##name(processor_t*, insn_t, reg_t); \
   proc->register_insn((insn_desc_t){match, mask, rv32_##name, rv64_##name});
-
+}  // namespace riscv_isa_sim
 #endif

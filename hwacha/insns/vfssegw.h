@@ -1,1 +1,1 @@
-VEC_SEG_STORE(FPR, store_uint32, 4);
+VEC_SEG_STORE(FPR, store<uint32_t>, 4);

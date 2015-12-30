@@ -1,8 +1,9 @@
 #ifndef _RISCV_ROCC_H
 #define _RISCV_ROCC_H
 
-#include "extension.h"
+#include "extension.hxx"
 
+namespace riscv_isa_sim {
 struct rocc_insn_t
 {
   unsigned opcode : 7;
@@ -31,5 +32,6 @@ class rocc_t : public extension_t
   std::vector<insn_desc_t> get_instructions();
   std::vector<disasm_insn_t*> get_disasms();
 };
+}  // namespace riscv_isa_sim
 
 #endif

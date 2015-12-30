@@ -1,16 +1,18 @@
 // See LICENSE for license details.
 
-#include "htif.h"
-#include "sim.h"
+#include "htif.hxx"
+#include "sim.hxx"
+
 #include "encoding.h"
 #include <unistd.h>
 #include <stdexcept>
-#include <stdlib.h>
+#include <cstdlib>
 #include <errno.h>
-#include <assert.h>
-#include <stddef.h>
+#include <cassert>
+#include <cstddef>
 #include <poll.h>
 
+namespace riscv_isa_sim {
 htif_isasim_t::htif_isasim_t(sim_t* _sim, const std::vector<std::string>& args)
   : htif_pthread_t(args), sim(_sim), reset(true), seqno(1)
 {
@@ -28,6 +30,7 @@ bool htif_isasim_t::tick()
 
 void htif_isasim_t::tick_once()
 {
+  using namespace riscv_fesvr;
   packet_header_t hdr;
   recv(&hdr, sizeof(hdr));
 
@@ -47,7 +50,7 @@ void htif_isasim_t::tick_once()
 
       uint64_t buf[hdr.data_size];
       for (size_t i = 0; i < hdr.data_size; i++)
-        buf[i] = sim->debug_mmu->load_uint64((hdr.addr+i)*HTIF_DATA_ALIGN);
+        buf[i] = sim->debug_mmu->load<uint64_t>((hdr.addr+i)*HTIF_DATA_ALIGN);
       send(buf, hdr.data_size * sizeof(buf[0]));
       break;
     }
@@ -55,7 +58,7 @@ void htif_isasim_t::tick_once()
     {
       const uint64_t* buf = (const uint64_t*)p.get_payload();
       for (size_t i = 0; i < hdr.data_size; i++)
-        sim->debug_mmu->store_uint64((hdr.addr+i)*HTIF_DATA_ALIGN, buf[i]);
+        sim->debug_mmu->store<uint64_t>((hdr.addr+i)*HTIF_DATA_ALIGN, buf[i]);
 
       packet_header_t ack(HTIF_CMD_ACK, seqno, 0, 0);
       send(&ack, sizeof(ack));
@@ -87,14 +90,14 @@ void htif_isasim_t::tick_once()
       switch (regno)
       {
         case CSR_MTOHOST:
-          old_val = proc->get_state()->tohost;
+          old_val = proc->get_state().tohost;
           if (write)
-            proc->get_state()->tohost = new_val;
+            proc->get_state().tohost = new_val;
           break;
         case CSR_MFROMHOST:
-          old_val = proc->get_state()->fromhost;
+          old_val = proc->get_state().fromhost;
           if (write && old_val == 0)
-            proc->get_state()->fromhost = new_val;
+            proc->get_state().fromhost = new_val;
           break;
         case CSR_MRESET:
           old_val = !proc->running();
@@ -123,3 +126,4 @@ bool htif_isasim_t::done()
     return false;
   return !sim->running();
 }
+}  // namespace riscv_isa_sim

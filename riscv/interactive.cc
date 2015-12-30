@@ -1,23 +1,25 @@
 // See LICENSE for license details.
 
-#include "decode.h"
-#include "disasm.h"
-#include "sim.h"
-#include "htif.h"
+#include "sim.hxx"
+#include "decode.hxx"
+#include "disasm.hxx"
+#include "htif.hxx"
+
 #include <sys/mman.h>
 #include <termios.h>
 #include <map>
 #include <iostream>
 #include <climits>
 #include <cinttypes>
-#include <assert.h>
-#include <stdlib.h>
+#include <cassert>
+#include <cstdlib>
 #include <unistd.h>
 #include <sstream>
 #include <string>
 #include <vector>
 #include <algorithm>
 
+namespace riscv_isa_sim {
 processor_t *sim_t::get_core(const std::string& i)
 {
   char *ptr;
@@ -33,25 +35,28 @@ static std::string readline(int fd)
   bool noncanonical = tcgetattr(fd, &tios) == 0 && (tios.c_lflag & ICANON) == 0;
 
   std::string s;
-  for (char ch; read(fd, &ch, 1) == 1; )
-  {
-    if (ch == '\x7f')
-    {
-      if (s.empty())
-        continue;
-      s.erase(s.end()-1);
+    for (char ch; read (fd, &ch, 1) == 1;)
+      {
+        if (ch == '\x7f')
+          {
+            if (s.empty ())
+              continue;
+            s.erase (s.end () - 1);
 
-      if (noncanonical && write(fd, "\b \b", 3) != 3)
-        ; // shut up gcc
-    }
-    else if (noncanonical && write(fd, &ch, 1) != 1)
-      ; // shut up gcc
-
-    if (ch == '\n')
-      break;
-    if (ch != '\x7f')
-      s += ch;
-  }
+            if (noncanonical && write (fd, "\b \b", 3) != 3)
+              {
+                // shut up gcc
+              }
+          }
+        else if (noncanonical && write (fd, &ch, 1) != 1)
+          {
+            // shut up gcc
+          }
+        if (ch == '\n')
+          break;
+        if (ch != '\x7f')
+          s += ch;
+      }
   return s;
 }
 
@@ -100,7 +105,7 @@ void sim_t::interactive()
       if(funcs.count(cmd))
         (this->*funcs[cmd])(cmd, args);
     }
-    catch(trap_t t) {}
+    catch(trap_t const& t) {}
   }
   ctrlc_pressed = false;
 }
@@ -153,7 +158,7 @@ void sim_t::interactive_run(const std::string& cmd, const std::vector<std::strin
 
 void sim_t::interactive_quit(const std::string& cmd, const std::vector<std::string>& args)
 {
-  exit(0);
+  exit(0);  ///< \bug Using of exit() in c++ prevents normal sequence of object destruction
 }
 
 reg_t sim_t::get_pc(const std::vector<std::string>& args)
@@ -267,17 +272,17 @@ reg_t sim_t::get_mem(const std::vector<std::string>& args)
   switch(addr % 8)
   {
     case 0:
-      val = mmu->load_uint64(addr);
+      val = mmu->load<uint64_t>(addr);
       break;
     case 4:
-      val = mmu->load_uint32(addr);
+      val = mmu->load<uint32_t>(addr);
       break;
     case 2:
     case 6:
-      val = mmu->load_uint16(addr);
+      val = mmu->load<uint16_t>(addr);
       break;
     default:
-      val = mmu->load_uint8(addr);
+      val = mmu->load<uint8_t>(addr);
       break;
   }
   return val;
@@ -296,7 +301,7 @@ void sim_t::interactive_str(const std::string& cmd, const std::vector<std::strin
   reg_t addr = strtol(args[0].c_str(),NULL,16);
 
   char ch;
-  while((ch = debug_mmu->load_uint8(addr++)))
+  while((ch = debug_mmu->load<uint8_t>(addr++)))
     putchar(ch);
 
   putchar('\n');
@@ -337,9 +342,10 @@ void sim_t::interactive_until(const std::string& cmd, const std::vector<std::str
       if (ctrlc_pressed)
         break;
     }
-    catch (trap_t t) {}
+    catch (trap_t const& t) {}
 
     set_procs_debug(false);
     step(1);
   }
 }
+}  // namespace riscv_isa_sim

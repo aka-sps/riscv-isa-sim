@@ -1,9 +1,10 @@
 // See LICENSE for license details.
 
-#include "mmu.h"
-#include "sim.h"
-#include "processor.h"
+#include "mmu.hxx"
+#include "processor.hxx"
+#include "sim.hxx"
 
+namespace riscv_isa_sim {
 mmu_t::mmu_t(char* _mem, size_t _memsz)
  : mem(_mem), memsz(_memsz), proc(NULL)
 {
@@ -102,7 +103,7 @@ void mmu_t::refill_tlb(reg_t vaddr, reg_t paddr, access_type type)
 reg_t mmu_t::walk(reg_t addr, bool supervisor, access_type type)
 {
   int levels, ptidxbits, ptesize;
-  switch (get_field(proc->get_state()->mstatus, MSTATUS_VM))
+  switch (get_field(proc->get_state().mstatus, MSTATUS_VM))
   {
     case VM_SV32: levels = 2; ptidxbits = 10; ptesize = 4; break;
     case VM_SV39: levels = 3; ptidxbits = 9; ptesize = 8; break;
@@ -117,7 +118,7 @@ reg_t mmu_t::walk(reg_t addr, bool supervisor, access_type type)
   if (masked_msbs != 0 && masked_msbs != mask)
     return -1;
 
-  reg_t base = proc->get_state()->sptbr;
+  reg_t base = proc->get_state().sptbr;
   int ptshift = (levels - 1) * ptidxbits;
   for (int i = 0; i < levels; i++, ptshift -= ptidxbits) {
     reg_t idx = (addr >> (PGSHIFT + ptshift)) & ((1 << ptidxbits) - 1);
@@ -152,3 +153,5 @@ void mmu_t::register_memtracer(memtracer_t* t)
   flush_tlb();
   tracer.hook(t);
 }
+
+}  // namespace riscv_isa_sim

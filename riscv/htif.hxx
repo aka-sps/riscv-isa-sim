@@ -3,8 +3,9 @@
 #ifndef _HTIF_H
 #define _HTIF_H
 
-#include <fesvr/htif_pthread.h>
+#include "fesvr/htif_pthread.hxx"
 
+namespace riscv_isa_sim {
 class sim_t;
 struct packet;
 
@@ -13,7 +14,7 @@ struct packet;
 // (read/write cr, read/write chunk) directly, but we implement the lower-
 // level serialized interface to be more similar to real target machines.
 
-class htif_isasim_t : public htif_pthread_t
+class htif_isasim_t : public ::riscv_fesvr::htif_pthread_t
 {
 public:
   htif_isasim_t(sim_t* _sim, const std::vector<std::string>& args);
@@ -27,5 +28,6 @@ private:
 
   void tick_once();
 };
+}  // namespace riscv_isa_sim
 
 #endif

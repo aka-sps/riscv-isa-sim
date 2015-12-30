@@ -1,15 +1,16 @@
 #ifndef _DECODE_HWACHA_UT_H
 #define _DECODE_HWACHA_UT_H
 
-#include "decode.h"
-#include "decode_hwacha.h"
-#include "hwacha.h"
+#include "../riscv/decode.hxx"
+#include "decode_hwacha.hxx"
+#include "hwacha.hxx"
 #include "hwacha_xcpt.h"
 
 #undef RS1
 #undef RS2
 #undef WRITE_RD
 
+namespace riscv_isa_sim {
 static inline reg_t read_rs1(hwacha_t* h, insn_t insn, uint32_t idx)
 {
   if (INSN_RS1 >= h->get_ct_state()->nxpr)
@@ -30,6 +31,7 @@ static inline void write_rd(hwacha_t* h, insn_t insn, uint32_t idx, reg_t value)
     h->take_exception(HWACHA_CAUSE_VF_ILLEGAL_REGID, VF_PC);
   UT_WRITE_RD(idx, value);
 }
+}  // namespace riscv_isa_sim
 
 #define RS1 read_rs1(h, insn, UTIDX)
 #define RS2 read_rs2(h, insn, UTIDX)
@@ -40,6 +42,7 @@ static inline void write_rd(hwacha_t* h, insn_t insn, uint32_t idx, reg_t value)
 #undef FRS3
 #undef WRITE_FRD
 
+namespace riscv_isa_sim {
 static inline reg_t read_frs1(hwacha_t* h, insn_t insn, uint32_t idx)
 {
   if (INSN_RS1 >= h->get_ct_state()->nfpr)
@@ -67,6 +70,7 @@ static inline void write_frd(hwacha_t* h, insn_t insn, uint32_t idx, reg_t value
     h->take_exception(HWACHA_CAUSE_VF_ILLEGAL_REGID, VF_PC);
   UT_WRITE_FRD(idx, value);
 }
+}  // namespace riscv_isa_sim
 
 #define FRS1 read_frs1(h, insn, UTIDX)
 #define FRS2 read_frs2(h, insn, UTIDX)
@@ -77,7 +81,7 @@ static inline void write_frd(hwacha_t* h, insn_t insn, uint32_t idx, reg_t value
 #undef require_fp
 #define require_fp
 
-#include "cvt16.h"
+#include "cvt16.hxx"
 
 #define HFRS1 cvt_hs(FRS1)
 #define HFRS2 cvt_hs(FRS2)

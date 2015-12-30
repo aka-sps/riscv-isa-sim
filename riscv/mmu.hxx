@@ -3,15 +3,17 @@
 #ifndef _RISCV_MMU_H
 #define _RISCV_MMU_H
 
-#include "decode.h"
-#include "trap.h"
 #include "common.h"
 #include "config.h"
-#include "processor.h"
-#include "memtracer.h"
-#include <stdlib.h>
+#include <cstdlib>
 #include <vector>
+#include "decode.hxx"
+#include "memtracer.hxx"
+#include "processor.hxx"
+#include "trap.hxx"
+#include <type_traits>
 
+namespace riscv_isa_sim {
 // virtual memory configuration
 #define PGSHIFT 12
 const reg_t PGSIZE = 1 << PGSHIFT;
@@ -36,48 +38,35 @@ public:
   mmu_t(char* _mem, size_t _memsz);
   ~mmu_t();
 
-  // template for functions that load an aligned value from memory
-  #define load_func(type) \
-    type##_t load_##type(reg_t addr) __attribute__((always_inline)) { \
-      if (addr & (sizeof(type##_t)-1)) \
-        throw trap_load_address_misaligned(addr); \
-      reg_t vpn = addr >> PGSHIFT; \
-      if (likely(tlb_load_tag[vpn % TLB_ENTRIES] == vpn)) \
-        return *(type##_t*)(tlb_data[vpn % TLB_ENTRIES] + addr); \
-      type##_t res; \
-      load_slow_path(addr, sizeof(type##_t), (uint8_t*)&res); \
-      return res; \
-    }
+  /// template for functions that load an aligned value from memory
+  /// load value from memory at aligned address;
+  /// zero/sign extend to register width
+  template<typename Ty>
+  Ty
+  load(reg_t addr){
+    if (addr & (sizeof(Ty) - 1))
+      throw trap_load_address_misaligned(addr);
+    reg_t const vpn = addr >> PGSHIFT;
+    if (likely(tlb_load_tag[vpn % TLB_ENTRIES] == vpn))
+      return *reinterpret_cast<typename std::add_const<Ty>::type*>(this->tlb_data[vpn % TLB_ENTRIES] + addr);
+    Ty res;
+    load_slow_path(addr, sizeof(Ty), reinterpret_cast<uint8_t*>(&res));
+    return res;
+  }
 
-  // load value from memory at aligned address; zero extend to register width
-  load_func(uint8)
-  load_func(uint16)
-  load_func(uint32)
-  load_func(uint64)
-
-  // load value from memory at aligned address; sign extend to register width
-  load_func(int8)
-  load_func(int16)
-  load_func(int32)
-  load_func(int64)
-
-  // template for functions that store an aligned value to memory
-  #define store_func(type) \
-    void store_##type(reg_t addr, type##_t val) { \
-      if (addr & (sizeof(type##_t)-1)) \
-        throw trap_store_address_misaligned(addr); \
-      reg_t vpn = addr >> PGSHIFT; \
-      if (likely(tlb_store_tag[vpn % TLB_ENTRIES] == vpn)) \
-        *(type##_t*)(tlb_data[vpn % TLB_ENTRIES] + addr) = val; \
-      else \
-        store_slow_path(addr, sizeof(type##_t), (const uint8_t*)&val); \
-    }
-
-  // store value to memory at aligned address
-  store_func(uint8)
-  store_func(uint16)
-  store_func(uint32)
-  store_func(uint64)
+  /// template for functions that store an aligned value to memory
+  /// store value to memory at aligned address
+  template<typename Ty>
+  void
+  store(reg_t addr, Ty const val) {
+    if (addr & (sizeof(Ty) - 1))
+      throw trap_store_address_misaligned(addr);
+    reg_t const vpn = addr >> PGSHIFT;
+    if (likely(tlb_store_tag[vpn % TLB_ENTRIES] == vpn))
+      *reinterpret_cast<Ty*>(tlb_data[vpn % TLB_ENTRIES] + addr) = val;
+    else
+      store_slow_path(addr, sizeof(Ty), reinterpret_cast<uint8_t const*>(&val));
+  }
 
   static const reg_t ICACHE_ENTRIES = 1024;
 
@@ -179,5 +168,6 @@ private:
   
   friend class processor_t;
 };
+}  // namespace riscv_isa_sim
 
 #endif

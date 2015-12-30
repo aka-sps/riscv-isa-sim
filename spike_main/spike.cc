@@ -1,18 +1,21 @@
 // See LICENSE for license details.
 
-#include "sim.h"
-#include "htif.h"
-#include "cachesim.h"
-#include "extension.h"
+#include "../riscv/sim.hxx"
+#include "../../riscv-fesvr/fesvr/option_parser.hxx"
+#include "../riscv/cachesim.hxx"
+#include "../riscv/htif.hxx"
+#include "extension.hxx"
 #include <dlfcn.h>
-#include <fesvr/option_parser.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <cstdio>
+#include <cstdlib>
 #include <getopt.h>
 #include <vector>
 #include <string>
 #include <memory>
+#include <iostream>
+#include <iomanip>
 
+namespace riscv_isa_sim {
 static void help()
 {
   fprintf(stderr, "usage: spike [host options] <target program> [target options]\n");
@@ -29,60 +32,77 @@ static void help()
   fprintf(stderr, "  --l2=<S>:<W>:<B>     B both powers of 2).\n");
   fprintf(stderr, "  --extension=<name> Specify RoCC Extension\n");
   fprintf(stderr, "  --extlib=<name>    Shared library to load\n");
-  exit(1);
+  exit(1);  ///< \bug Using of exit() in c++ prevents normal sequence of object destruction
 }
+}  // namespace riscv_isa_sim
 
 int main(int argc, char** argv)
 {
-  bool debug = false;
-  bool histogram = false;
-  bool log = false;
-  size_t nprocs = 1;
-  size_t mem_mb = 0;
-  std::unique_ptr<icache_sim_t> ic;
-  std::unique_ptr<dcache_sim_t> dc;
-  std::unique_ptr<cache_sim_t> l2;
-  std::function<extension_t*()> extension;
-  const char* isa = "RV64";
+  try {
+    using namespace riscv_isa_sim;
+    bool debug = false;
+    bool histogram = false;
+    bool log = false;
+    size_t nprocs = 1;
+    size_t mem_mb = 0;
+    std::unique_ptr<icache_sim_t> ic;
+    std::unique_ptr<dcache_sim_t> dc;
+    std::unique_ptr<cache_sim_t> l2;
+    std::function<extension_t*()> extension;
+    const char* isa = "RV64";
 
-  option_parser_t parser;
-  parser.help(&help);
-  parser.option('h', 0, 0, [&](const char* s){help();});
-  parser.option('d', 0, 0, [&](const char* s){debug = true;});
-  parser.option('g', 0, 0, [&](const char* s){histogram = true;});
-  parser.option('l', 0, 0, [&](const char* s){log = true;});
-  parser.option('p', 0, 1, [&](const char* s){nprocs = atoi(s);});
-  parser.option('m', 0, 1, [&](const char* s){mem_mb = atoi(s);});
-  parser.option(0, "ic", 1, [&](const char* s){ic.reset(new icache_sim_t(s));});
-  parser.option(0, "dc", 1, [&](const char* s){dc.reset(new dcache_sim_t(s));});
-  parser.option(0, "l2", 1, [&](const char* s){l2.reset(cache_sim_t::construct(s, "L2$"));});
-  parser.option(0, "isa", 1, [&](const char* s){isa = s;});
-  parser.option(0, "extension", 1, [&](const char* s){extension = find_extension(s);});
-  parser.option(0, "extlib", 1, [&](const char *s){
-    void *lib = dlopen(s, RTLD_NOW | RTLD_GLOBAL);
-    if (lib == NULL) {
-      fprintf(stderr, "Unable to load extlib '%s': %s\n", s, dlerror());
-      exit(-1);
+    using namespace riscv_fesvr;
+    option_parser_t parser;
+    parser.help(&help);
+    parser.option('h', 0, 0, [&](const char* s){help();});
+    parser.option('d', 0, 0, [&](const char* s){debug = true;});
+    parser.option('g', 0, 0, [&](const char* s){histogram = true;});
+    parser.option('l', 0, 0, [&](const char* s){log = true;});
+    parser.option('p', 0, 1, [&](const char* s){nprocs = atoi(s);});
+    parser.option('m', 0, 1, [&](const char* s){mem_mb = atoi(s);});
+    parser.option(0, "ic", 1, [&](const char* s){ic.reset(new icache_sim_t(s));});
+    parser.option(0, "dc", 1, [&](const char* s){dc.reset(new dcache_sim_t(s));});
+    parser.option(0, "l2", 1, [&](const char* s){l2.reset(cache_sim_t::construct(s, "L2$"));});
+    parser.option(0, "isa", 1, [&](const char* s){isa = s;});
+    parser.option(0, "extension", 1, [&](const char* s){extension = find_extension(s);});
+    parser.option(0, "extlib", 1, [&](const char *s){
+      void *lib = dlopen(s, RTLD_NOW | RTLD_GLOBAL);
+      if (lib == NULL) {
+        fprintf(stderr, "Unable to load extlib '%s': %s\n", s, dlerror());
+        exit(-1);  ///< \bug Using of exit() in c++ prevents normal sequence of object destruction
+      }
+    });
+
+    auto argv1 = parser.parse(argv);
+    if (!*argv1)
+      help();
+    std::vector<std::string> htif_args(argv1, (const char*const*)argv + argc);
+    sim_t s(isa, nprocs, mem_mb, htif_args);
+
+    if (ic && l2) ic->set_miss_handler(&*l2);
+    if (dc && l2) dc->set_miss_handler(&*l2);
+    for (size_t i = 0; i < nprocs; i++)
+    {
+      if (ic) s.get_core(i)->get_mmu()->register_memtracer(&*ic);
+      if (dc) s.get_core(i)->get_mmu()->register_memtracer(&*dc);
+      if (extension) s.get_core(i)->register_extension(extension());
     }
-  });
 
-  auto argv1 = parser.parse(argv);
-  if (!*argv1)
-    help();
-  std::vector<std::string> htif_args(argv1, (const char*const*)argv + argc);
-  sim_t s(isa, nprocs, mem_mb, htif_args);
-
-  if (ic && l2) ic->set_miss_handler(&*l2);
-  if (dc && l2) dc->set_miss_handler(&*l2);
-  for (size_t i = 0; i < nprocs; i++)
-  {
-    if (ic) s.get_core(i)->get_mmu()->register_memtracer(&*ic);
-    if (dc) s.get_core(i)->get_mmu()->register_memtracer(&*dc);
-    if (extension) s.get_core(i)->register_extension(extension());
+    s.set_debug(debug);
+    s.set_log(log);
+    if (log) {
+      if (!freopen("spike.log", "w", stderr))
+        {
+          throw std::runtime_error("Can't reopen stderr to spike.log");
+        }
+    }
+    s.set_histogram(histogram);
+    return s.run();
+  } catch (std::exception const& _excp) {
+      std::cerr << "Unhandled std exception: " << _excp.what() << std::endl;
+      return EXIT_FAILURE;
+  } catch (...) {
+      std::cerr << "Unhandled unknown exception" << std::endl;
+      return EXIT_FAILURE;
   }
-
-  s.set_debug(debug);
-  s.set_log(log);
-  s.set_histogram(histogram);
-  return s.run();
 }

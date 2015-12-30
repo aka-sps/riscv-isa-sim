@@ -8,13 +8,14 @@
 #endif
 
 #include <cstdint>
-#include <string.h>
+#include <cstring>
 #include <strings.h>
 #include "encoding.h"
 #include "config.h"
 #include "common.h"
 #include <cinttypes>
 
+namespace riscv_isa_sim {
 typedef int64_t sreg_t;
 typedef uint64_t reg_t;
 typedef uint64_t freg_t;
@@ -121,7 +122,7 @@ private:
 
 // helpful macros, etc
 #define MMU (*p->get_mmu())
-#define STATE (*p->get_state())
+#define STATE (p->get_state())
 #define READ_REG(reg) STATE.XPR[reg]
 #define READ_FREG(reg) STATE.FPR[reg]
 #define RS1 READ_REG(insn.rs1())
@@ -209,5 +210,6 @@ private:
   if (((write) && csr_read_only) || my_priv < csr_priv) \
     throw trap_illegal_instruction(); \
   (which); })
+}  // namespace riscv_isa_sim
 
 #endif

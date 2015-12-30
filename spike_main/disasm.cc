@@ -1,13 +1,14 @@
 // See LICENSE for license details.
 
-#include "disasm.h"
+#include "../riscv/disasm.hxx"
+
 #include <string>
 #include <vector>
 #include <cstdarg>
 #include <sstream>
-#include <stdlib.h>
+#include <cstdlib>
 
-
+namespace riscv_isa_sim {
 struct : public arg_t {
   std::string to_string(insn_t insn) const {
     return std::to_string((int)insn.i_imm()) + '(' + xpr_name[insn.rs1()] + ')';
@@ -560,3 +561,4 @@ disassembler_t::~disassembler_t()
     for (size_t j = 0; j < chain[i].size(); j++)
       delete chain[i][j];
 }
+}  // namespace riscv_isa_sim

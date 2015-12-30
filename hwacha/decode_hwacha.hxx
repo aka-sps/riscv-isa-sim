@@ -1,9 +1,9 @@
 #ifndef _DECODE_HWACHA_H
 #define _DECODE_HWACHA_H
 
-#include "hwacha.h"
+#include "../riscv/mmu.hxx"
+#include "hwacha.hxx"
 #include "hwacha_xcpt.h"
-#include "mmu.h"
 
 #define XS1 (xs1)
 #define XS2 (xs2)
@@ -30,6 +30,7 @@
 #define INSN_RD (insn.rd())
 #define INSN_SEG (((reg_t)insn.i_imm() >> 9)+1)
 
+namespace riscv_isa_sim {
 static inline reg_t read_xpr(hwacha_t* h, insn_t insn, uint32_t idx, size_t src)
 {
   if (src >= h->get_ct_state()->nxpr)
@@ -100,7 +101,8 @@ static inline void write_fpr(hwacha_t* h, insn_t insn, uint32_t idx, size_t dst,
   }
 
 #define require_supervisor_hwacha \
-  if (get_field(p->get_state()->mstatus, MSTATUS_PRV) < PRV_S) \
+  if (get_field(p->get_state().mstatus, MSTATUS_PRV) < PRV_S) \
     h->take_exception(HWACHA_CAUSE_PRIVILEGED_INSTRUCTION, uint32_t(insn.bits()));
+}  // namespace riscv_isa_sim
 
 #endif

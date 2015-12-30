@@ -1,4 +1,4 @@
-#include "cvt16.h"
+#include "cvt16.hxx"
 
 #define H_BIAS    (UINT16_C(0xf))
 #define H_F_MASK  (UINT16_C(0x03FF))
@@ -18,6 +18,7 @@
 
 #define PAD  (S_E_SHIFT - H_E_SHIFT)
 
+namespace riscv_isa_sim {
 uint_fast32_t cvt_hs(uint_fast16_t x)
 {
 #define MSB (UINT32_C(0x00800000))
@@ -125,4 +126,4 @@ uint_fast16_t cvt_sh(uint_fast32_t x, int rm)
 	return sign | exp | frac;
 #undef MSB
 }
-
+}  // namespace riscv_isa_sim

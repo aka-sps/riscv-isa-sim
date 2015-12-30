@@ -1,5 +1,6 @@
-#include "hwacha.h"
+#include "hwacha.hxx"
 
+namespace riscv_isa_sim {
 static const char* xpr[] = {
   "zero", "ra", "s0", "s1",  "s2",  "s3",  "s4",  "s5",
   "s6",   "s7", "s8", "s9", "s10", "s11",  "sp",  "tp",
@@ -201,3 +202,4 @@ std::vector<disasm_insn_t*> hwacha_t::get_disasms()
 
   return insns;
 }
+}  // namespace riscv_isa_sim

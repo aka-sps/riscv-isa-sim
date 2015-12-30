@@ -3,12 +3,13 @@
 #ifndef _RISCV_CACHE_SIM_H
 #define _RISCV_CACHE_SIM_H
 
-#include "memtracer.h"
 #include <cstring>
 #include <string>
 #include <map>
 #include <cstdint>
+#include "memtracer.hxx"
 
+namespace riscv_isa_sim {
 class lfsr_t
 {
  public:
@@ -120,5 +121,6 @@ class dcache_sim_t : public cache_memtracer_t
     if (type == LOAD || type == STORE) cache->access(addr, bytes, type == STORE);
   }
 };
+}  // namespace riscv_isa_sim
 
 #endif

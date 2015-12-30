@@ -229,4 +229,3 @@ float64_t softfloat_subMagsF64( uint_fast64_t, uint_fast64_t, bool );
 *----------------------------------------------------------------------------*/
 float64_t
  softfloat_mulAddF64( int, uint_fast64_t, uint_fast64_t, uint_fast64_t );
-

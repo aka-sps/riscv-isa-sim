@@ -1,7 +1,8 @@
 // See LICENSE for license details.
 
-#include "disasm.h"
+#include "disasm.hxx"
 
+namespace riscv_isa_sim {
 const char* xpr_name[] = {
   "zero", "ra", "sp",  "gp",  "tp", "t0",  "t1",  "t2",
   "s0",   "s1", "a0",  "a1",  "a2", "a3",  "a4",  "a5",
@@ -15,3 +16,4 @@ const char* fpr_name[] = {
   "fa6", "fa7", "fs2",  "fs3",  "fs4", "fs5", "fs6",  "fs7",
   "fs8", "fs9", "fs10", "fs11", "ft8", "ft9", "ft10", "ft11"
 };
+}  // namespace riscv_isa_sim

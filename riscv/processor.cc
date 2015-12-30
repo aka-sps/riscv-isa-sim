@@ -1,24 +1,26 @@
 // See LICENSE for license details.
+#include "processor.hxx"
 
-#include "processor.h"
-#include "extension.h"
+#include "extension.hxx"
+#include "sim.hxx"
+#include "disasm.hxx"
+#include "htif.hxx"
 #include "common.h"
 #include "config.h"
-#include "sim.h"
-#include "htif.h"
-#include "disasm.h"
+
 #include <cinttypes>
 #include <cmath>
 #include <cstdlib>
 #include <iostream>
-#include <assert.h>
-#include <limits.h>
+#include <cassert>
+#include <climits>
 #include <stdexcept>
 #include <algorithm>
 
 #undef STATE
 #define STATE state
 
+namespace riscv_isa_sim {
 processor_t::processor_t(const char* isa, sim_t* sim, uint32_t id)
   : sim(sim), ext(NULL), disassembler(new disassembler_t),
     id(id), run(false), debug(false)
@@ -595,3 +597,4 @@ bool processor_t::store(reg_t addr, size_t len, const uint8_t* bytes)
     return false;
   }
 }
+}  // namespace riscv_isa_sim

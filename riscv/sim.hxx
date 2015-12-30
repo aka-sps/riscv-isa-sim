@@ -3,18 +3,22 @@
 #ifndef _RISCV_SIM_H
 #define _RISCV_SIM_H
 
+#include "mmu.hxx"
+#include "processor.hxx"
+#include "devices.hxx"
+
 #include <vector>
 #include <string>
 #include <memory>
-#include "processor.h"
-#include "mmu.h"
-#include "devices.h"
 
+namespace riscv_isa_sim {
 class htif_isasim_t;
 
 // this class encapsulates the processors and memory in a RISC-V machine.
 class sim_t
 {
+  sim_t(sim_t const&) = delete;
+  sim_t& operator = (sim_t const&) = delete;
 public:
   sim_t(const char* isa, size_t _nprocs, size_t mem_mb,
         const std::vector<std::string>& htif_args);
@@ -44,6 +48,7 @@ private:
   mmu_t* debug_mmu;  // debug port into main memory
   std::vector<processor_t*> procs;
   std::unique_ptr<rom_device_t> devicetree;
+  std::unique_ptr<abstract_device_t> vcs;
   bus_t bus;
 
   processor_t* get_core(const std::string& i);
@@ -90,5 +95,6 @@ private:
 };
 
 extern volatile bool ctrlc_pressed;
+}  // namespace riscv_isa_sim
 
 #endif

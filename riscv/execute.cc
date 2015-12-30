@@ -1,30 +1,40 @@
-// See LICENSE for license details.
+/// @file
+/// @brief spike with vcs agent support
+///
+/// This branch setup UDP communication with vcs agent and emulate 
+/// empty clocks,
+/// read and write transactions
+/// to external memory on external bus.
+///
+/// See LICENSE for license details.
 
-#include "processor.h"
-#include "mmu.h"
+#include "processor.hxx"
+#include "mmu.hxx"
+#include "spike_client.hxx"
+
 #include <cassert>
 
-
-static void commit_log_stash_privilege(state_t* state)
+namespace riscv_isa_sim {
+static void commit_log_stash_privilege(state_t const& state)
 {
 #ifdef RISCV_ENABLE_COMMITLOG
-  state->last_inst_priv = get_field(state->mstatus, MSTATUS_PRV);
+  state->last_inst_priv = get_field(state.mstatus, MSTATUS_PRV);
 #endif
 }
 
-static void commit_log_print_insn(state_t* state, reg_t pc, insn_t insn)
+static void commit_log_print_insn(state_t const& state, reg_t pc, insn_t insn)
 {
 #ifdef RISCV_ENABLE_COMMITLOG
-  int32_t priv = state->last_inst_priv;
+  int32_t priv = state.last_inst_priv;
   uint64_t mask = (insn.length() == 8 ? uint64_t(0) : (uint64_t(1) << (insn.length() * 8))) - 1;
-  if (state->log_reg_write.addr) {
+  if (state.log_reg_write.addr) {
     fprintf(stderr, "%1d 0x%016" PRIx64 " (0x%08" PRIx64 ") %c%2" PRIu64 " 0x%016" PRIx64 "\n",
             priv,
             pc,
             insn.bits() & mask,
-            state->log_reg_write.addr & 1 ? 'f' : 'x',
-            state->log_reg_write.addr >> 1,
-            state->log_reg_write.data);
+            state.log_reg_write.addr & 1 ? 'f' : 'x',
+            state.log_reg_write.addr >> 1,
+            state.log_reg_write.data);
   } else {
     fprintf(stderr, "%1d 0x%016" PRIx64 " (0x%08" PRIx64 ")\n", priv, pc, insn.bits() & mask);
   }
@@ -47,6 +57,7 @@ static reg_t execute_insn(processor_t* p, reg_t pc, insn_fetch_t fetch)
     commit_log_print_insn(p->get_state(), pc, fetch.insn);
     p->update_histogram(pc);
   }
+  spike_vcs_TL::vcs_device_agent::instance().end_of_clock();
   return npc;
 }
 
@@ -57,16 +68,17 @@ void processor_t::step(size_t n)
     size_t instret = 0;
     reg_t pc = state.pc;
     mmu_t* _mmu = mmu;
-
-    #define advance_pc() \
-     if (unlikely(pc == PC_SERIALIZE)) { \
-       pc = state.pc; \
-       state.serialized = true; \
-       break; \
-     } else { \
-       state.pc = pc; \
-       instret++; \
-     }
+    auto advance_pc = [&]()->bool{
+      if (unlikely(pc == PC_SERIALIZE)) {
+        pc = state.pc;
+        state.serialized = true;
+        return false;
+      } else {
+        state.pc = pc;
+        ++instret;
+        return true;
+      }
+    };
 
     try
     {
@@ -81,7 +93,9 @@ void processor_t::step(size_t n)
           if (!state.serialized)
             disasm(fetch.insn);
           pc = execute_insn(this, pc, fetch);
-          advance_pc();
+          if(!advance_pc()) {
+              break;
+          }
         }
       }
       else while (instret < n)
@@ -91,12 +105,12 @@ void processor_t::step(size_t n)
 
         #define ICACHE_ACCESS(i) { \
           insn_fetch_t fetch = ic_entry->data; \
-          ic_entry++; \
+          ++ic_entry; \
           pc = execute_insn(this, pc, fetch); \
           if (i == mmu_t::ICACHE_ENTRIES-1) break; \
           if (unlikely(ic_entry->tag != pc)) goto miss; \
           if (unlikely(instret+1 == n)) break; \
-          instret++; \
+          ++instret; \
           state.pc = pc; \
         }
 
@@ -104,11 +118,15 @@ void processor_t::step(size_t n)
           #include "icache.h"
         }
 
-        advance_pc();
+        if(!advance_pc()) {
+            break;
+        }
         continue;
 
 miss:
-        advance_pc();
+        if(!advance_pc()) {
+            break;
+        }
         // refill I$ if it looks like there wasn't a taken branch
         if (pc > (ic_entry-1)->tag && pc <= (ic_entry-1)->tag + MAX_INSN_LENGTH)
           _mmu->refill_icache(pc, ic_entry);
@@ -123,3 +141,4 @@ miss:
     n -= instret;
   }
 }
+}  // namespace riscv_isa_sim

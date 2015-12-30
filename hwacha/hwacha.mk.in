@@ -6,18 +6,18 @@ hwacha_subproject_deps = \
 hwacha_install_prog_srcs = \
 
 hwacha_hdrs = \
-	hwacha.h \
+	hwacha.hxx \
 	hwacha_xcpt.h \
-	decode_hwacha.h \
-	decode_hwacha_ut.h \
+	decode_hwacha.hxx \
+	decode_hwacha_ut.hxx \
 	opcodes_hwacha.h \
 	opcodes_hwacha_ut.h \
-	insn_template_hwacha.h \
-	insn_template_hwacha_ut.h \
+	insn_template_hwacha.hxx \
+	insn_template_hwacha_ut.hxx \
 
 hwacha_precompiled_hdrs = \
-	insn_template_hwacha.h \
-	insn_template_hwacha_ut.h \
+	insn_template_hwacha.hxx \
+	insn_template_hwacha_ut.hxx \
 
 hwacha_srcs = \
 	hwacha.cc \
