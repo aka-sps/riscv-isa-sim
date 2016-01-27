@@ -86,7 +86,7 @@ class Server
         {
             struct sockaddr_in saddr;
             saddr.sin_family = AF_INET;
-            saddr.sin_addr.s_addr = ::htonl(INADDR_ANY);
+            saddr.sin_addr.s_addr = htonl(INADDR_ANY);
             saddr.sin_port = htons(a_port);
             if (::bind(this->m_socket, reinterpret_cast<struct sockaddr*>(&saddr), sizeof saddr) < 0)
                 throw std::runtime_error("could not bind to port " + std::to_string(a_port));
@@ -185,7 +185,7 @@ class Client
             : m_socket(::socket(AF_INET, SOCK_DGRAM, 0))
         {
             this->m_saddr.sin_family = AF_INET;
-            this->m_saddr.sin_addr.s_addr = ::htonl(INADDR_LOOPBACK);
+            this->m_saddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
             this->m_saddr.sin_port = htons(a_port);
         }
 
