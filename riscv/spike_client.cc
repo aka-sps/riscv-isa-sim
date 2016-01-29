@@ -35,6 +35,8 @@ vcs_device_agent::load(uint32_t addr, size_t len, uint8_t* bytes)
         }
     } else if (ack->m_cmd == Request_type::reset_state && ack->m_data != 0) {
         throw Reset_active();
+    } else if (ack->m_cmd == Request_type::interrupt && ack->m_data != 0) {
+        throw Interrupt_active(ack->m_data - 1);
     } else {
         throw Exception();
     }
@@ -59,6 +61,8 @@ vcs_device_agent::store(uint32_t addr, size_t len, uint8_t const* bytes)
     if (ack->m_cmd == Request_type::write) {
     } else if (ack->m_cmd == Request_type::reset_state && ack->m_data != 0) {
         throw Reset_active();
+    } else if (ack->m_cmd == Request_type::interrupt && ack->m_data != 0) {
+        throw Interrupt_active(ack->m_data - 1);
     } else {
         throw Exception();
     }
@@ -73,6 +77,8 @@ vcs_device_agent::end_of_clock()
         if (ack->m_cmd == Request_type::skip) {
         } else if (ack->m_cmd == Request_type::reset_state && ack->m_data != 0) {
             throw Reset_active();
+        } else if (ack->m_cmd == Request_type::interrupt && ack->m_data != 0) {
+            throw Interrupt_active(ack->m_data - 1);
         } else {
             throw Exception();
         }

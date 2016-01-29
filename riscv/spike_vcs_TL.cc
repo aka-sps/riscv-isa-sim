@@ -39,7 +39,8 @@ operator << (std::ostream& a_ostr, ACK const& a_ack) {
         "ACK:" <<
         " sn = " << std::dec << unsigned(a_ack.m_sn) <<
         " cmd = " << unsigned(a_ack.m_cmd);
-    if (a_ack.m_cmd == Request_type::read || a_ack.m_cmd == Request_type::reset_state) {
+    if (a_ack.m_cmd == Request_type::read || a_ack.m_cmd == Request_type::reset_state
+        || a_ack.m_cmd == Request_type::interrupt) {
         a_ostr <<
             " data = " << std::hex << unsigned(a_ack.m_data) << std::dec;
     }

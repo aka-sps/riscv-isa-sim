@@ -21,6 +21,7 @@ enum class Request_type : uint8_t
     read = 1,
     write = 2,
     reset_state = 3,
+    interrupt = 4,
 };
 
 class Request

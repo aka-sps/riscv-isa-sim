@@ -102,13 +102,25 @@ int sim_t::run()
         auto& vcs = spike_vcs_TL::vcs_device_agent::instance();
         vcs.wait_while_reset_is_active();
         while (htif->tick()) {
-            if (debug || ctrlc_pressed)
-                interactive();
-            else
-                step(INTERLEAVE);
-            vcs.end_of_clock();
+            try {
+                if (debug || ctrlc_pressed)
+                    interactive();
+                else
+                    step(INTERLEAVE);
+                vcs.end_of_clock();
+            }
+            catch (vcs_device_agent::Interrupt_active const& eexp) {
+                unsigned pnum = eexp.target_proc();
+                if (pnum < procs.size())
+                    procs[pnum]->get_state().mip |= (MIP_MXIP | MIP_HXIP | MIP_SXIP);
+                else
+                    throw;
+            }
         }
-    } catch (vcs_device_agent::Reset_active const& _excp) {
+    }
+    catch (vcs_device_agent::Reset_active const& _excp) {
+    }
+    catch (vcs_device_agent::Interrupt_active const& eexp) {
     }
     return htif->exit_code();
 }

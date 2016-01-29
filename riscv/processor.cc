@@ -169,6 +169,9 @@ void processor_t::take_interrupt()
 
     if (state.fromhost != 0)
       raise_interrupt(IRQ_HOST);
+
+    if (interrupts & MIP_MXIP)
+      raise_interrupt(IRQ_EXT);
   }
 
   if (priv < PRV_S || (priv == PRV_S && ie)) {
@@ -177,6 +180,9 @@ void processor_t::take_interrupt()
 
     if (interrupts & MIP_STIP)
       raise_interrupt(IRQ_TIMER);
+
+    if (interrupts & MIP_SXIP)
+      raise_interrupt(IRQ_EXT);
   }
 }
 

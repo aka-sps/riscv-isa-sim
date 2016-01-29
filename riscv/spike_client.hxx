@@ -28,6 +28,20 @@ public:
         {}
     };
 
+    class Interrupt_active :public Exception
+    {
+        typedef Exception Base_class;
+
+        unsigned proc_num;
+    public:
+        Interrupt_active(unsigned proc) : Base_class("active ext interrupt signal"),
+                                          proc_num (proc)
+        {}
+        unsigned target_proc(void) const {
+            return proc_num;
+        }
+    };
+
     static vcs_device_agent&
         instance();
 
