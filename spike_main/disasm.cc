@@ -76,7 +76,11 @@ struct : public arg_t {
       #define DECLARE_CSR(name, num) case num: return #name;
       #include "encoding.h"
       #undef DECLARE_CSR
-      default: return "unknown";
+    default: {
+        std::stringstream s;
+        s << std::hex << "0x" << insn.csr();
+        return s.str();
+    }
     }
   }
 } csr;
