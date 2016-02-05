@@ -1,3 +1,7 @@
+/// \file
+/// \copyright Syntacore 2015
+/// See LICENSE for license details
+
 #include "spike_client.hxx"
 #include "spike_vcs_TL.hxx"
 
@@ -25,6 +29,7 @@ vcs_device_agent::load(uint32_t addr, size_t len, uint8_t* bytes)
         throw std::length_error(std::string(__FILE__) + ":" + std::to_string(__LINE__) + ": vcs_device_agent::load bad lenght = " + std::to_string(len));
     }
     auto const ack = Client::instance().request(Request_type::read, addr, len);
+    m_state = ack->m_state;
     if (ack->m_cmd == Request_type::read) {
         auto data = ack->m_data;
         /// \warning Little endian only
@@ -35,8 +40,6 @@ vcs_device_agent::load(uint32_t addr, size_t len, uint8_t* bytes)
         }
     } else if (ack->m_cmd == Request_type::reset_state && ack->m_data != 0) {
         throw Reset_active();
-    } else if (ack->m_cmd == Request_type::interrupt && ack->m_data != 0) {
-        throw Interrupt_active(ack->m_data - 1);
     } else {
         throw Exception();
     }
@@ -58,11 +61,10 @@ vcs_device_agent::store(uint32_t addr, size_t len, uint8_t const* bytes)
     }
     // LOGGER << "vcs_device_agent::store: len=" << len << std::endl;
     auto const ack = Client::instance().request(Request_type::write, addr, len, data);
+    m_state = ack->m_state;
     if (ack->m_cmd == Request_type::write) {
     } else if (ack->m_cmd == Request_type::reset_state && ack->m_data != 0) {
         throw Reset_active();
-    } else if (ack->m_cmd == Request_type::interrupt && ack->m_data != 0) {
-        throw Interrupt_active(ack->m_data - 1);
     } else {
         throw Exception();
     }
@@ -74,16 +76,54 @@ vcs_device_agent::end_of_clock()
 {
     if (!this->m_was_transactions) {
         auto const ack = Client::instance().request(Request_type::skip);
+        m_state = ack->m_state;
         if (ack->m_cmd == Request_type::skip) {
         } else if (ack->m_cmd == Request_type::reset_state && ack->m_data != 0) {
             throw Reset_active();
-        } else if (ack->m_cmd == Request_type::interrupt && ack->m_data != 0) {
-            throw Interrupt_active(ack->m_data - 1);
         } else {
             throw Exception();
         }
     }
+
     this->m_was_transactions = false;
+}
+
+uint32_t
+vcs_device_agent::irq_state(void)
+{
+    auto const ack = Client::instance().request(Request_type::irq_lines_get);
+    uint32_t data;
+    m_state = ack->m_state;
+    if (ack->m_cmd == Request_type::irq_lines_get) {
+        data = ack->m_data;
+    } else if (ack->m_cmd == Request_type::reset_state && ack->m_data != 0) {
+        throw Reset_active();
+    } else {
+        throw Exception();
+    }
+    this->m_was_transactions = true;
+    return data;
+}
+
+bool
+vcs_device_agent::irq_state(uint32_t data)
+{
+    // LOGGER << "vcs_device_agent::store: len=" << len << std::endl;
+    auto const ack = Client::instance().request(Request_type::irq_lines_set, data);
+    m_state = ack->m_state;
+    if (ack->m_cmd == Request_type::irq_lines_set) {
+    } else if (ack->m_cmd == Request_type::reset_state && ack->m_data != 0) {
+        throw Reset_active();
+    } else {
+        throw Exception();
+    }
+    return this->m_was_transactions = true;
+}
+
+bool
+vcs_device_agent::is_irq_active(void) const
+{
+    return (m_state & 1) ? true : false;
 }
 
 void

@@ -1,3 +1,7 @@
+/// \file
+/// \copyright Syntacore 2015
+/// See LICENSE for license details
+
 #ifndef SPIKE_VCS_TL_HXX_
 #define SPIKE_VCS_TL_HXX_
 
@@ -21,7 +25,9 @@ enum class Request_type : uint8_t
     read = 1,
     write = 2,
     reset_state = 3,
-    interrupt = 4,
+    irq_lines_set = 4,
+    irq_lines_get = 5,
+    req_num,
 };
 
 class Request
@@ -60,11 +66,11 @@ class ACK
 {
     ACK(ACK const&) = delete;
     ACK& operator = (ACK const&) = delete;
-    ACK(uint8_t a_sn, Request_type a_cmd, uint32_t a_data = 0);
+    ACK(uint8_t a_sn, Request_type a_cmd, uint32_t a_state, uint32_t a_data = 0);
 
 public:
     static std::shared_ptr<ACK const>
-        create(uint8_t a_sn, Request_type a_cmd, uint32_t a_data = 0);
+        create(uint8_t a_sn, Request_type a_cmd, uint32_t a_state, uint32_t a_data = 0);
 
     static std::shared_ptr<ACK const>
         deserialize(std::vector<uint8_t> const& a_buf);
@@ -72,6 +78,7 @@ public:
     std::vector<uint8_t> serialize()const;
     uint8_t m_sn;
     Request_type m_cmd;
+    uint32_t m_state;
     uint32_t m_data;
     friend std::ostream&
         operator << (std::ostream& a_ostr, ACK const& a_ack);
@@ -105,9 +112,11 @@ class Server
             for (;;) {
                 std::vector<uint8_t> buf(a_len);
                 this->m_addrlen = sizeof this->m_saddr;
+                // LOGGER << "recvfrom..." << std::endl;
                 ssize_t const size = ::recvfrom(this->m_socket, &buf[0], buf.size(), 0, src_addr, addrlen);
                 if (size >= 0) {
                     buf.resize(size);
+                    // LOGGER << "...recvfrom receive " << size << " bytes" << std::endl;
                     return buf;
                 }
             }
@@ -138,6 +147,7 @@ public:
     void
         send_ack()const
     {
+        // LOGGER << *m_p_ack << std::endl;
         this->m_socket.send(m_p_ack->serialize());
     }
     std::shared_ptr<Request const>
@@ -153,20 +163,21 @@ public:
             } else {
                 this->m_p_req = p_req;
                 this->m_p_ack.reset();
+                // LOGGER << "Receive: " << *this->m_p_req << std::endl;
                 break;
             }
         }
         return get_last_request();
     }
     void
-        ack(Request_type const a_cmd, uint32_t a_data = 0)
+        ack(Request_type const a_cmd, uint32_t a_state, uint32_t a_data = 0)
     {
-        this->m_p_ack = ACK::create(this->get_last_request()->m_sn, a_cmd, a_data);
+        this->m_p_ack = ACK::create(this->get_last_request()->m_sn, a_cmd, a_state, a_data);
     }
     void
-        ack(uint32_t a_data = 0)
+        ack(uint32_t a_state, uint32_t a_data = 0)
     {
-        this->m_p_ack = ACK::create(this->get_last_request()->m_sn, this->get_last_request()->m_cmd, a_data);
+        this->m_p_ack = ACK::create(this->get_last_request()->m_sn, this->get_last_request()->m_cmd, a_state, a_data);
     }
 private:
     Server(uint16_t a_port = 5000) :m_socket(a_port)
@@ -210,6 +221,7 @@ class Client
             tmot.tv_sec = 1;
             tmot.tv_usec = 0;
 
+            // LOGGER << "Select..." << std::endl;
             int const ready = ::select(this->m_socket + 1, &rset, nullptr, &eset, &tmot);
             typedef std::shared_ptr<std::vector<uint8_t> > result_type;
             if (ready != 1 || !FD_ISSET(this->m_socket, &rset)) {
@@ -218,6 +230,7 @@ class Client
             }
             result_type res(new std::vector<uint8_t>(a_len));
             std::vector<uint8_t>& buf = *res;
+            // LOGGER << "recvfrom..." << std::endl;
             ssize_t const size = ::recvfrom(this->m_socket, &buf[0], buf.size(), 0, nullptr, 0);
             if (size < 0) {
                 LOGGER << "...recvfrom failure: " << size << std::endl;
@@ -257,6 +270,7 @@ public:
         this->m_p_req = Request::create(this->m_sn, a_cmd, a_address, a_size, a_data);
         for (;;) {
             this->m_socket.send(this->m_p_req->serialize());
+            // LOGGER << "Try to recv..." << std::endl;
             auto const pkt = this->m_socket.recv();
             if (!pkt) {
                 LOGGER << "No answer: " << *this->m_p_req << std::endl;

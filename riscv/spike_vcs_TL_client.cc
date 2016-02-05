@@ -1,3 +1,7 @@
+/// \file
+/// \copyright Syntacore 2015
+/// See LICENSE for license details
+
 #include "spike_vcs_TL.hxx"
 
 namespace spike_vcs_TL {
@@ -39,6 +43,15 @@ Request::serialize() const {
                 res[11] = static_cast<uint8_t>(this->m_data >> (8 * 0));
             }
             break;
+        case Request_type::irq_lines_set:
+            {
+                res.resize(8, 0);
+                res[4] = static_cast<uint8_t>(this->m_address >> (8 * 3));
+                res[5] = static_cast<uint8_t>(this->m_address >> (8 * 2));
+                res[6] = static_cast<uint8_t>(this->m_address >> (8 * 1));
+                res[7] = static_cast<uint8_t>(this->m_address >> (8 * 0));
+            }
+            break;
         default:
             break;
     }
@@ -47,29 +60,31 @@ Request::serialize() const {
 std::shared_ptr<ACK const>
 ACK::deserialize(std::vector<uint8_t> const& a_buf) {
     typedef std::shared_ptr<ACK const> res_type;
-    if (a_buf.size() < 2) {
-        LOGGER << "a_buf.size() < 2 (" << a_buf.size() << ")" << std::endl;
+    if (a_buf.size() < 8) {
+        LOGGER << "a_buf.size() < 8 (" << a_buf.size() << ")" << std::endl;
         return res_type();
     }
     uint8_t const sn = a_buf[0];
-    if (a_buf[1] > static_cast<uint8_t>(Request_type::reset_state)) {
-        LOGGER << "a_buf[1] > static_cast<uint8_t>(Request_type::reset) (" << a_buf[1] << ")" << std::endl;
+    if (a_buf[1] >= static_cast<uint8_t>(Request_type::req_num)) {
+        LOGGER << "a_buf[1] > static_cast<uint8_t>(Request_type::req_num) (" << a_buf[1] << ")" << std::endl;
         return res_type();
     }
     Request_type const cmd = static_cast<Request_type>(a_buf[1]);
+    uint32_t const state = (((((a_buf[4] << 8) | a_buf[5]) << 8) | a_buf[6]) << 8) | a_buf[7];
     switch (cmd) {
         case Request_type::read:
         case Request_type::reset_state:
+        case Request_type::irq_lines_get:
             {
-                if (a_buf.size() < 8) {
-                    LOGGER << "a_buf.size() < 8 (" << a_buf.size() << ")" << std::endl;
+                if (a_buf.size() < 12) {
+                    LOGGER << "a_buf.size() < 12 (" << a_buf.size() << ")" << std::endl;
                 }
-                uint32_t const data = (((((a_buf[4] << 8) | a_buf[5]) << 8) | a_buf[6]) << 8) | a_buf[7];
-                return res_type(new ACK(sn, cmd, data));
+                uint32_t const data = (((((a_buf[8] << 8) | a_buf[9]) << 8) | a_buf[10]) << 8) | a_buf[11];
+                return res_type(new ACK(sn, cmd, state, data));
             }
             break;
         default:
-            return res_type(new ACK(sn, cmd));
+            return res_type(new ACK(sn, cmd, state));
     }
 }
 Client& Client::instance()

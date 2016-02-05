@@ -341,7 +341,7 @@ void processor_t::set_csr(int which, reg_t val)
       break;
     }
     case CSR_MIE: {
-      reg_t mask = MIP_SSIP | MIP_MSIP | MIP_STIP | MIP_MTIP;
+      reg_t mask = MIP_SSIP | MIP_MSIP | MIP_STIP | MIP_MTIP | MIP_SXIP | MIP_MXIP;
       state.mie = (state.mie & ~mask) | (val & mask);
       break;
     }
@@ -361,7 +361,7 @@ void processor_t::set_csr(int which, reg_t val)
       break;
     }
     case CSR_SIE: {
-      reg_t mask = MIP_SSIP | MIP_STIP;
+      reg_t mask = MIP_SSIP | MIP_STIP | MIP_SXIP;
       state.mie = (state.mie & ~mask) | (val & mask);
       break;
     }
@@ -382,6 +382,10 @@ void processor_t::set_csr(int which, reg_t val)
         state.tohost = val;
       break;
     case CSR_MFROMHOST: state.fromhost = val; break;
+    case 0x7c0:
+      break;
+    case 0x7c1:
+      sim->set_irq_state(val);
   }
 }
 
@@ -444,8 +448,8 @@ reg_t processor_t::get_csr(int which)
         ss = set_field(ss, (xlen == 32 ? SSTATUS32_SD : SSTATUS64_SD), 1);
       return ss;
     }
-    case CSR_SIP: return state.mip & (MIP_SSIP | MIP_STIP);
-    case CSR_SIE: return state.mie & (MIP_SSIP | MIP_STIP);
+    case CSR_SIP: return state.mip & (MIP_SSIP | MIP_STIP | MIP_SXIP);
+    case CSR_SIE: return state.mie & (MIP_SSIP | MIP_STIP | MIP_SXIP);
     case CSR_SEPC: return state.sepc;
     case CSR_SBADADDR: return state.sbadaddr;
     case CSR_STVEC: return state.stvec;
@@ -493,6 +497,10 @@ reg_t processor_t::get_csr(int which)
     case CSR_UARCH13:
     case CSR_UARCH14:
     case CSR_UARCH15:
+      return 0;
+    case 0x7c0:
+      return sim->get_irq_state();
+    case 0x7c1:
       return 0;
   }
   throw trap_illegal_instruction();

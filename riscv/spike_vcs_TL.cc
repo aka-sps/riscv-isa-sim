@@ -1,3 +1,8 @@
+////////////////////////////////////////////////////
+// Copyright 2015 Syntacore
+// See LICENSE for license details
+////////////////////////////////////////////////////
+
 #include "spike_vcs_TL.hxx"
 
 namespace spike_vcs_TL {
@@ -9,8 +14,9 @@ Request::Request(uint8_t _sn, Request_type _cmd, uint32_t _address /*= 0*/, uint
 , m_data(_data) {
 }
 
-ACK::ACK(uint8_t a_sn, Request_type a_cmd, uint32_t a_data /*= 0*/) : m_sn(a_sn)
+ACK::ACK(uint8_t a_sn, Request_type a_cmd, uint32_t a_state, uint32_t a_data /*= 0*/) : m_sn(a_sn)
 , m_cmd(a_cmd)
+, m_state(a_state)
 , m_data(a_data) {
 
 }
@@ -38,9 +44,9 @@ operator << (std::ostream& a_ostr, ACK const& a_ack) {
     a_ostr <<
         "ACK:" <<
         " sn = " << std::dec << unsigned(a_ack.m_sn) <<
-        " cmd = " << unsigned(a_ack.m_cmd);
-    if (a_ack.m_cmd == Request_type::read || a_ack.m_cmd == Request_type::reset_state
-        || a_ack.m_cmd == Request_type::interrupt) {
+        " cmd = " << unsigned(a_ack.m_cmd) <<
+        " state = " << std::hex << unsigned(a_ack.m_state);
+    if (a_ack.m_cmd == Request_type::read || a_ack.m_cmd == Request_type::reset_state || a_ack.m_cmd == Request_type::irq_lines_get) {
         a_ostr <<
             " data = " << std::hex << unsigned(a_ack.m_data) << std::dec;
     }

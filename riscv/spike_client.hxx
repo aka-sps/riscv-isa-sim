@@ -1,3 +1,7 @@
+/// \file
+/// \copyright Syntacore 2015
+/// See LICENSE for license details
+
 #ifndef SPIKE_VCS_TL__SPIKE_CLIENT_HXX_
 #define SPIKE_VCS_TL__SPIKE_CLIENT_HXX_
 
@@ -28,20 +32,6 @@ public:
         {}
     };
 
-    class Interrupt_active :public Exception
-    {
-        typedef Exception Base_class;
-
-        unsigned proc_num;
-    public:
-        Interrupt_active(unsigned proc) : Base_class("active ext interrupt signal"),
-                                          proc_num (proc)
-        {}
-        unsigned target_proc(void) const {
-            return proc_num;
-        }
-    };
-
     static vcs_device_agent&
         instance();
 
@@ -54,9 +44,16 @@ public:
         store(uint32_t addr, size_t len, uint8_t const* bytes);
     void
         end_of_clock();
+    uint32_t
+        irq_state(void);
+    bool
+        irq_state(uint32_t data);
+    bool
+        is_irq_active(void) const;
 
 private:
     bool m_was_transactions;
+    uint32_t m_state;
 };
 }  // namespace spike_vcs_TL
 
