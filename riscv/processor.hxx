@@ -5,6 +5,7 @@
 #include "config.h"
 #include "devices.hxx"
 #include "decode.hxx"
+#include "ipic.hxx"
 #include <cstring>
 #include <vector>
 #include <map>
@@ -114,6 +115,7 @@ public:
 private:
   sim_t* sim;
   mmu_t* mmu;  ///< main memory is always accessed via the mmu
+  ipic_t* ipic;
   extension_t* ext;
   disassembler_t* disassembler;
   state_t state;

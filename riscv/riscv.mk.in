@@ -7,6 +7,7 @@ riscv_subproject_deps = \
 riscv_install_prog_srcs = \
 
 riscv_hdrs = \
+	ipic.hxx \
 	htif.hxx \
 	common.h \
 	decode.hxx \
@@ -29,6 +30,7 @@ riscv_precompiled_hdrs = \
 	insn_template.hxx \
 
 riscv_srcs = \
+	ipic.cc \
 	htif.cc \
 	processor.cc \
 	execute.cc \

@@ -27,6 +27,8 @@ processor_t::processor_t(const char* isa, sim_t* sim, uint32_t id)
 {
   parse_isa_string(isa);
 
+  ipic = new ipic_t(sim, this, ipic_t::internal);
+
   mmu = new mmu_t(sim->mem, sim->memsz);
   mmu->set_processor(this);
 
@@ -47,6 +49,7 @@ processor_t::~processor_t()
 #endif
 
   delete mmu;
+  delete ipic;
   delete disassembler;
 }
 
@@ -382,10 +385,52 @@ void processor_t::set_csr(int which, reg_t val)
         state.tohost = val;
       break;
     case CSR_MFROMHOST: state.fromhost = val; break;
-    case 0x7c0:
+    // IPIC specific CSRs
+    case IPIC_CSR_GET_IRQ_STATE: // RO
       break;
-    case 0x7c1:
+    case IPIC_CSR_SET_IRQ_STATE:
       sim->set_irq_state(val);
+      break;
+    case IPIC_CSR_MCICSR:
+      ipic->set_mcicsr(val);
+      break;
+    case IPIC_CSR_SCICSR:
+      ipic->set_scicsr(val);
+      break;
+    case IPIC_CSR_MEOI:
+      ipic->set_meoi(val);
+      break;
+    case IPIC_CSR_SEOI:
+      ipic->set_seoi(val);
+      break;
+    case IPIC_CSR_SOI:
+      ipic->set_soi(val);
+      break;
+    case IPIC_CSR_CISV: // RO
+      break;
+    case IPIC_CSR_ISVR: // RO
+      break;
+    case IPIC_CSR_IPR:
+      ipic->set_ipr(val);
+      break;
+    case IPIC_CSR_IER:
+      ipic->set_ier(val);
+      break;
+    case IPIC_CSR_IMR:
+      ipic->set_imr(val);
+      break;
+    case IPIC_CSR_INVR:
+      ipic->set_invr(val);
+      break;
+    case IPIC_CSR_ISAR:
+      ipic->set_isar(val);
+      break;
+    case IPIC_CSR_IDX:
+      ipic->set_ridx(val);
+      break;
+    case IPIC_CSR_ICSR:
+      ipic->set_icsr(val);
+      break;
   }
 }
 
@@ -498,10 +543,35 @@ reg_t processor_t::get_csr(int which)
     case CSR_UARCH14:
     case CSR_UARCH15:
       return 0;
-    case 0x7c0:
+    // IPIC specific CSRs
+    case IPIC_CSR_GET_IRQ_STATE:
       return sim->get_irq_state();
-    case 0x7c1:
+    case IPIC_CSR_SET_IRQ_STATE: // WO
+    case IPIC_CSR_MEOI: // WO
+    case IPIC_CSR_SEOI: // WO
+    case IPIC_CSR_SOI: // WO
+    case IPIC_CSR_IPR: // WO
       return 0;
+    case IPIC_CSR_MCICSR:
+      return ipic->get_mcicsr();
+    case IPIC_CSR_SCICSR:
+      return ipic->get_scicsr();
+    case IPIC_CSR_CISV:
+      return ipic->get_cisw();
+    case IPIC_CSR_ISVR:
+      return ipic->get_isvr();
+    case IPIC_CSR_IER:
+      return ipic->get_ier();
+    case IPIC_CSR_IMR:
+      return ipic->get_imr();
+    case IPIC_CSR_INVR:
+      return ipic->get_invr();
+    case IPIC_CSR_ISAR:
+      return ipic->get_isar();
+    case IPIC_CSR_IDX:
+      return ipic->get_ridx();
+    case IPIC_CSR_ICSR:
+      return ipic->get_icsr();
   }
   throw trap_illegal_instruction();
 }
