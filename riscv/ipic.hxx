@@ -43,13 +43,13 @@ enum ipic_constants {
 
 enum ipic_ics_bits {
   // these bits are accessible in M-mode and S-mode
-  IPIC_ICS_IP = (1 << 0), // pending
-  IPIC_ICS_IE = (1 << 1), // enable
-  IPIC_ICS_IM = (1 << 2), // mode
-  IPIC_ICS_II = (1 << 3), // line inversion
+  IPIC_ICS_IP  = (1 << 0), // pending
+  IPIC_ICS_IE  = (1 << 1), // enable
+  IPIC_ICS_IM  = (1 << 2), // mode
+  IPIC_ICS_INV = (1 << 3), // line inversion
   // follow bits are accessible in M-mode only
-  IPIC_ICS_SA = (1 << 8), // supervisor access
-  IPIC_ICS_IS = (1 << 9), // in-service
+  IPIC_ICS_SA  = (1 << 8), // supervisor access
+  IPIC_ICS_IS  = (1 << 9), // in-service
   // external IRQ line number
   IPIC_ICS_LN_OFFS = 12, // LN offset
   IPIC_ICS_LN_BITS = 5, // LN bits
@@ -70,6 +70,15 @@ public:
   ipic_t(sim_t *sim, processor_t *proc, emulation_mode mode = internal);
   ~ipic_t();
 
+  // update state of ext irq lines
+  void update_lines_state(reg_t v);
+  // check IPIC inerrupt line state
+  bool is_irq_active();
+
+  emulation_mode get_mode() const {
+    return mode;
+  }
+
   // regsiter access functions
 
   // MCICSR/SCICSR
@@ -83,12 +92,12 @@ public:
   // SOI
   void  set_soi(reg_t);
   // CISV
-  reg_t get_cisw(); // RO
-  // aggregated access to fields of
-  // ISR (aggregated)
+  reg_t get_cisv(); // RO
+  // ISVR (aggregated)
   reg_t get_isvr(); // RO
   // IPR (aggregated)
-  void  set_ipr(reg_t); // WC
+  reg_t get_ipr();
+  void  set_ipr(reg_t); // W1C
   // IER (aggregated)
   reg_t get_ier();
   void  set_ier(reg_t);
@@ -110,6 +119,7 @@ public:
   void  set_icsr(reg_t);
 
 private:
+  emulation_mode mode;
   ipic_implementation *impl;
 };
 }  // namespace riscv_isa_sim

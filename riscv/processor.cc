@@ -557,7 +557,7 @@ reg_t processor_t::get_csr(int which)
     case IPIC_CSR_SCICSR:
       return ipic->get_scicsr();
     case IPIC_CSR_CISV:
-      return ipic->get_cisw();
+      return ipic->get_cisv();
     case IPIC_CSR_ISVR:
       return ipic->get_isvr();
     case IPIC_CSR_IER:

@@ -14,6 +14,11 @@ public:
   ipic_implementation(sim_t *s, processor_t *p) : sim(s), proc(p) {}
   virtual ~ipic_implementation() {}
 
+  // update state of ext irq lines
+  virtual void update_lines_state(reg_t v) {}
+  // check IPIC inerrupt line state
+  virtual bool is_irq_active() { return false; }
+
   // regsiter access functions
 
   // MCICSR/SCICSR
@@ -27,11 +32,11 @@ public:
   // SOI
   virtual void  set_soi(reg_t) = 0;
   // CISV
-  virtual reg_t get_cisw() = 0; // RO
-  // aggregated access to fields of
-  // ISR (aggregated)
+  virtual reg_t get_cisv() = 0; // RO
+  // ISVR (aggregated)
   virtual reg_t get_isvr() = 0; // RO
   // IPR (aggregated)
+  virtual reg_t get_ipr() = 0;
   virtual void  set_ipr(reg_t) = 0; // WC
   // IER (aggregated)
   virtual reg_t get_ier() = 0;
@@ -81,12 +86,12 @@ public:
   // SOI
   void  set_soi(reg_t);
   // CISV
-  reg_t get_cisw(); // RO
-  // aggregated access to fields of
+  reg_t get_cisv(); // RO
   // ISR (aggregated)
   reg_t get_isvr(); // RO
   // IPR (aggregated)
-  void  set_ipr(reg_t); // WC
+  reg_t get_ipr();
+  void  set_ipr(reg_t); // W1C
   // IER (aggregated)
   reg_t get_ier();
   void  set_ier(reg_t);
@@ -134,18 +139,21 @@ void  ext_ipic::set_soi(reg_t v)
 {
 }
 // CISV
-reg_t ext_ipic::get_cisw() // RO
+reg_t ext_ipic::get_cisv() // RO
 {
   return 0;
 }
-// aggregated access to fields of
 // ISR (aggregated)
 reg_t ext_ipic::get_isvr() // RO
 {
   return 0;
 }
 // IPR (aggregated)
-void  ext_ipic::set_ipr(reg_t v) // WC
+reg_t ext_ipic::get_ipr()
+{
+  return 0;
+}
+void  ext_ipic::set_ipr(reg_t v) // W1C
 {
 }
 // IER (aggregated)
@@ -204,8 +212,14 @@ class internal_ipic : public ipic_implementation
 {
 public:
 
-  internal_ipic(sim_t *s, processor_t *p) : ipic_implementation(s, p) {}
+  internal_ipic(sim_t *s, processor_t *p)
+    : ipic_implementation(s, p) {}
   ~internal_ipic() {}
+
+  // update state of ext irq lines
+  void update_lines_state(reg_t v);
+  // check IPIC inerrupt line state
+  bool is_irq_active();
 
   // regsiter access functions
 
@@ -220,11 +234,11 @@ public:
   // SOI
   void  set_soi(reg_t);
   // CISV
-  reg_t get_cisw(); // RO
-  // aggregated access to fields of
-  // ISR (aggregated)
+  reg_t get_cisv(); // RO
+  // ISVR (aggregated)
   reg_t get_isvr(); // RO
   // IPR (aggregated)
+  reg_t get_ipr();
   void  set_ipr(reg_t); // WC
   // IER (aggregated)
   reg_t get_ier();
@@ -247,83 +261,196 @@ public:
   void  set_icsr(reg_t);
 
 private:
-  uint32_t status[IPIC_IRQ_LINES];
-  uint32_t cicsr;
+  uint32_t isvr;
+  uint32_t ipr;
+  uint32_t ier;
+  uint32_t imr;
+  uint32_t invr;
+  uint32_t isar;
+  uint32_t intmap[IPIC_IRQ_LINES];
+
   uint32_t ridx;
-  std::vector<unsigned> in_service;
+  uint32_t ext_irq; // current state of irq lines (for detection of edges)
+  std::vector<unsigned> in_service; // back = current in-service interrupt
 };
 
+// update state of ext irq lines
+void internal_ipic::update_lines_state(reg_t v)
+{
+  uint32_t changes = ext_irq ^ v;
+
+  // for eache changed line check state
+  for (unsigned i = 0; i < IPIC_IRQ_LINES; ++i) {
+    uint32_t mask = 1 << i;
+    uint32_t line_mask = (1 << intmap[i]);
+    if (changes & line_mask) {
+      int state = v & line_mask;
+      if (invr & mask)
+        state = !state;
+      if (imr & mask) { // edge detection
+        if (state)
+          ipr |= mask;
+      } else { // level detection
+        if (state)
+          ipr |= mask;
+        else
+          ipr &= ~mask;
+      }
+    }
+  }
+  // update current ext irq line's state
+  ext_irq = v;
+}
+// check IPIC inerrupt line state
+bool internal_ipic::is_irq_active()
+{
+  // mask lower prio irqs
+  reg_t cisv = get_cisv();
+  uint32_t en_mask = ~0;
+  if (cisv != IPIC_ISV_NONE)
+    en_mask = (1 << cisv) - 1;
+  return ((ipr & ier) & en_mask) != 0;
+}
 reg_t internal_ipic::get_mcicsr()
 {
-  return 0;
+  uint32_t cicsr = 0;
+  if (!in_service.empty()) {
+    uint32_t idx = in_service.back();
+    uint32_t mask = 1 << idx;
+    if (ipr & mask)
+      cicsr |= IPIC_ICS_IP;
+    if (ier & mask)
+      cicsr |= IPIC_ICS_IE;
+  }
+  return cicsr;
 }
 void  internal_ipic::set_mcicsr(reg_t v)
 {
+  uint32_t cicsr = 0;
+  if (!in_service.empty()) {
+    uint32_t idx = in_service.back();
+    uint32_t mask = 1 << idx;
+    // clear pending state
+    if (v & IPIC_ICS_IP)
+      ipr &= ~mask;
+    // enable/disable interrupt
+    if (v & IPIC_ICS_IE)
+      ier |= mask;
+    else
+      ier &= ~mask;
+  }
 }
 reg_t internal_ipic::get_scicsr()
 {
+  if (!in_service.empty()) {
+    uint32_t mask = 1 << in_service.back();
+    if (isar & mask)
+      return get_mcicsr();
+  }
   return 0;
 }
 void  internal_ipic::set_scicsr(reg_t v)
 {
+  if (!in_service.empty()) {
+    uint32_t mask = 1 << in_service.back();
+    if (isar & mask)
+      set_mcicsr(v);
+  }
 }
 // MEOI/SEOI
-void  internal_ipic::set_meoi(reg_t v)
+void  internal_ipic::set_meoi(reg_t )
 {
+  if (!in_service.empty()) {
+    uint32_t mask = 1 << in_service.back();
+    isvr &= ~mask;
+    in_service.pop_back();
+  }
 }
 void  internal_ipic::set_seoi(reg_t v)
 {
+  if (!in_service.empty()) {
+    uint32_t mask = 1 << in_service.back();
+    if (isar & mask)
+      set_meoi(v);
+  }
 }
 // SOI
 void  internal_ipic::set_soi(reg_t v)
 {
+  // mask lower prio irqs
+  reg_t cisv = get_cisv();
+  uint32_t en_mask = ~0;
+  if (cisv != IPIC_ISV_NONE)
+    en_mask = (1 << cisv) - 1;
+  uint32_t active_int = (ipr & ier) & en_mask;
+  if (active_int) {
+    // get irq with highest prio
+    unsigned int_num = 0;
+    for (; int_num < IPIC_IRQ_LINES; ++int_num) {
+      if (active_int & (1 << int_num))
+        break;
+    }
+    in_service.push_back(int_num);
+    uint32_t mask = 1 << int_num;
+    ipr &= ~mask;
+    isvr |= mask;
+  }
 }
 // CISV
-reg_t internal_ipic::get_cisw() // RO
+reg_t internal_ipic::get_cisv() // RO
 {
-  return 0;
+  if (!in_service.empty())
+    return in_service.back();
+  return IPIC_ISV_NONE;
 }
-// aggregated access to fields of
-// ISR (aggregated)
+// ISVR (aggregated)
 reg_t internal_ipic::get_isvr() // RO
 {
-  return 0;
+  return isvr;
 }
 // IPR (aggregated)
-void  internal_ipic::set_ipr(reg_t v) // WC
+reg_t internal_ipic::get_ipr()
+{
+  return ipr;
+}
+void  internal_ipic::set_ipr(reg_t v) // W1C
 {
 }
 // IER (aggregated)
 reg_t internal_ipic::get_ier()
 {
-  return 0;
+  return ier;
 }
 void  internal_ipic::set_ier(reg_t v)
 {
+  ier = v;
 }
 // IMR (aggregated)
 reg_t internal_ipic::get_imr()
 {
-  return 0;
+  return imr;
 }
 void  internal_ipic::set_imr(reg_t v)
 {
+  imr = v;
 }
 // INVR (aggregated)
 reg_t internal_ipic::get_invr()
 {
-  return 0;
+  return invr;
 }
 void  internal_ipic::set_invr(reg_t v)
 {
+  invr = v;
 }
 // ISAR (aggregated)
 reg_t internal_ipic::get_isar()
 {
-  return 0;
+  return isar;
 }
 void  internal_ipic::set_isar(reg_t v)
 {
+  isar = v;
 }
 // rel indexed access to interrupt control/status regs
 // IDX
@@ -333,15 +460,65 @@ reg_t internal_ipic::get_ridx()
 }
 void  internal_ipic::set_ridx(reg_t v)
 {
-  ridx = v;
+  ridx = v % IPIC_IRQ_LINES;
 }
 // ICSR
 reg_t internal_ipic::get_icsr()
 {
-  return 0;
+  uint32_t mask = 1 << ridx;
+  uint32_t status = intmap[ridx] << IPIC_ICS_LN_OFFS;
+  if (ipr & mask)
+    status |= IPIC_ICS_IP;
+  if (ier & mask)
+    status |= IPIC_ICS_IE;
+  if (imr & mask)
+    status |= IPIC_ICS_IM;
+  if (invr & mask)
+    status |= IPIC_ICS_INV;
+  if (isar & mask)
+    status |= IPIC_ICS_SA;
+  if (isvr & mask)
+    status |= IPIC_ICS_IS;
+
+  return status;
 }
 void  internal_ipic::set_icsr(reg_t v)
 {
+  uint32_t mask = 1 << ridx;
+
+  if (v & IPIC_ICS_IE)
+    ier |= mask;
+  else
+    ier &= ~mask;
+  if (v & IPIC_ICS_IM)
+    imr |= mask;
+  else
+    imr &= ~mask;
+  if (v & IPIC_ICS_INV)
+    invr |= mask;
+  else
+    invr &= ~mask;
+  if (v & IPIC_ICS_SA)
+    isar |= mask;
+  else
+    isar &= ~mask;
+  intmap[ridx] = (v >> IPIC_ICS_LN_OFFS) & ((1 << IPIC_ICS_LN_BITS) - 1);
+
+  // update pending state,
+  ipr &= ~mask;
+  uint32_t line_mask = 1 << intmap[ridx];
+  if (imr & mask) {
+    // edge detection
+  } else {
+    // level detection
+    if (invr & mask) {
+      if ((ext_irq & line_mask) == 0)
+        ipr |= mask;
+    } else {
+      if (ext_irq & line_mask)
+        ipr |= mask;
+    }
+  }
 }
 
 //----------------------------------------------------------
@@ -358,6 +535,17 @@ ipic_t::ipic_t(sim_t *s, processor_t *p, emulation_mode mode)
 ipic_t::~ipic_t()
 {
   delete impl;
+}
+
+// update state of ext irq lines
+void ipic_t::update_lines_state(reg_t v)
+{
+  impl->update_lines_state(v);
+}
+// check IPIC inerrupt line state
+bool ipic_t::is_irq_active()
+{
+  return impl->is_irq_active();
 }
 
 reg_t ipic_t::get_mcicsr()
@@ -391,18 +579,22 @@ void  ipic_t::set_soi(reg_t v)
   impl->set_soi(v);
 }
 // CISV
-reg_t ipic_t::get_cisw() // RO
+reg_t ipic_t::get_cisv() // RO
 {
-  return impl->get_cisw();
+  return impl->get_cisv();
 }
 // aggregated access to fields of
-// ISR (aggregated)
+// ISVR (aggregated)
 reg_t ipic_t::get_isvr() // RO
 {
   return impl->get_isvr();
 }
 // IPR (aggregated)
-void  ipic_t::set_ipr(reg_t v) // WC
+reg_t ipic_t::get_ipr()
+{
+  return impl->get_ipr();
+}
+void  ipic_t::set_ipr(reg_t v)
 {
   impl->set_ipr(v);
 }

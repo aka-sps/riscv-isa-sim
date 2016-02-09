@@ -57,10 +57,19 @@ static reg_t execute_insn(processor_t* p, reg_t pc, insn_fetch_t fetch)
     commit_log_print_insn(p->get_state(), pc, fetch.insn);
     p->update_histogram(pc);
   }
-  spike_vcs_TL::vcs_device_agent::instance().end_of_clock();
-  if (spike_vcs_TL::vcs_device_agent::instance().is_irq_active()) {
-      p->get_state().mip |= (MIP_MXIP | MIP_HXIP | MIP_SXIP);
-      // fprintf(stderr, "set mip: %08X\n", (unsigned)p->get_state().mip);
+  auto &vcs_agent = spike_vcs_TL::vcs_device_agent::instance();
+  if (p->get_ipic()->get_mode() == ipic_t::internal) {
+      p->get_ipic()->update_lines_state(vcs_agent.irq_state());
+      if (p->get_ipic()->is_irq_active()) {
+          p->get_state().mip |= (MIP_MXIP | MIP_HXIP | MIP_SXIP);
+          fprintf(stderr, "set mip: %08X\n", (unsigned)p->get_state().mip);
+      }
+  } else { // external IPIC
+      vcs_agent.end_of_clock();
+      if (vcs_agent.is_irq_active()) {
+          p->get_state().mip |= (MIP_MXIP | MIP_HXIP | MIP_SXIP);
+          // fprintf(stderr, "set mip: %08X\n", (unsigned)p->get_state().mip);
+      }
   }
   return npc;
 }

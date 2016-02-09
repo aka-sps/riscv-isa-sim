@@ -92,6 +92,7 @@ public:
   void raise_interrupt(reg_t which);
   reg_t get_csr(int which);
   mmu_t* get_mmu() { return mmu; }
+  ipic_t* get_ipic() { return ipic; }
   state_t const& get_state()const { return state; }
   state_t& get_state() { return state; }
   extension_t* get_extension()const { return this->ext; }
