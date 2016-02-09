@@ -62,13 +62,19 @@ static reg_t execute_insn(processor_t* p, reg_t pc, insn_fetch_t fetch)
       p->get_ipic()->update_lines_state(vcs_agent.irq_state());
       if (p->get_ipic()->is_irq_active()) {
           p->get_state().mip |= (MIP_MXIP | MIP_HXIP | MIP_SXIP);
-          fprintf(stderr, "set mip: %08X\n", (unsigned)p->get_state().mip);
+          // fprintf(stderr, "set mip: %08X\n", (unsigned)p->get_state().mip);
+      } else {
+          p->get_state().mip &= ~(MIP_MXIP | MIP_HXIP | MIP_SXIP);
+          // fprintf(stderr, "clr mip: %08X\n", (unsigned)p->get_state().mip);
       }
   } else { // external IPIC
       vcs_agent.end_of_clock();
       if (vcs_agent.is_irq_active()) {
           p->get_state().mip |= (MIP_MXIP | MIP_HXIP | MIP_SXIP);
           // fprintf(stderr, "set mip: %08X\n", (unsigned)p->get_state().mip);
+      } else {
+          p->get_state().mip &= ~(MIP_MXIP | MIP_HXIP | MIP_SXIP);
+          // fprintf(stderr, "clr mip: %08X\n", (unsigned)p->get_state().mip);
       }
   }
   return npc;

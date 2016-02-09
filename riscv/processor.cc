@@ -550,7 +550,6 @@ reg_t processor_t::get_csr(int which)
     case IPIC_CSR_MEOI: // WO
     case IPIC_CSR_SEOI: // WO
     case IPIC_CSR_SOI: // WO
-    case IPIC_CSR_IPR: // WO
       return 0;
     case IPIC_CSR_MCICSR:
       return ipic->get_mcicsr();
@@ -560,6 +559,8 @@ reg_t processor_t::get_csr(int which)
       return ipic->get_cisv();
     case IPIC_CSR_ISVR:
       return ipic->get_isvr();
+    case IPIC_CSR_IPR:
+      return ipic->get_ipr();
     case IPIC_CSR_IER:
       return ipic->get_ier();
     case IPIC_CSR_IMR:
