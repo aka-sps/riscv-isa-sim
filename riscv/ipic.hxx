@@ -37,8 +37,10 @@ enum ipic_constants {
   IPIC_CSR_GET_IRQ_STATE = 0x7c0,
   IPIC_CSR_SET_IRQ_STATE = 0x7c1,
 
-  IPIC_IRQ_LINES = 32,
-  IPIC_ISV_NONE  = 32, // 'no in service-mode interrupts' value
+  IPIC_IRQ_LINES   = 32, // number of supported ext lines
+  IPIC_IRQ_LN_VOID = IPIC_IRQ_LINES, // 'not-connected' value for number of ext line
+  IPIC_IRQ_VECTORS = 32, // number of implemented vectors
+  IPIC_ISV_NONE    = 32, // 'no in service-mode interrupts' value
 };
 
 enum ipic_ics_bits {
@@ -52,7 +54,7 @@ enum ipic_ics_bits {
   IPIC_ICS_IS  = (1 << 9), // in-service
   // external IRQ line number
   IPIC_ICS_LN_OFFS = 12, // LN offset
-  IPIC_ICS_LN_BITS = 5, // LN bits
+  IPIC_ICS_LN_BITS = 6, // LN bits
   IPIC_ICS_LN_MASK = (((1 << IPIC_ICS_LN_BITS) - 1) << IPIC_ICS_LN_OFFS), // LN mask
 };
 

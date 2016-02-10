@@ -212,8 +212,7 @@ class internal_ipic : public ipic_implementation
 {
 public:
 
-  internal_ipic(sim_t *s, processor_t *p)
-    : ipic_implementation(s, p) {}
+  internal_ipic(sim_t *s, processor_t *p);
   ~internal_ipic() {}
 
   // update state of ext irq lines
@@ -267,24 +266,39 @@ private:
   uint32_t imr;
   uint32_t invr;
   uint32_t isar;
-  uint32_t intmap[IPIC_IRQ_LINES];
+  uint32_t intmap[IPIC_IRQ_VECTORS];
 
   uint32_t ridx;
   uint32_t ext_irq; // current state of irq lines (for detection of edges)
   std::vector<unsigned> in_service; // back = current in-service interrupt
 };
 
+internal_ipic::internal_ipic(sim_t *s, processor_t *p)
+  : ipic_implementation(s, p)
+{
+  // init ext irq lines for vectors
+  for (int i = 0; i < IPIC_IRQ_VECTORS; ++i)
+    intmap[i] = IPIC_IRQ_LN_VOID;
+}
+
 // update state of ext irq lines
 void internal_ipic::update_lines_state(reg_t v)
 {
   uint32_t changes = ext_irq ^ v;
 
+  // fprintf(stderr, "update lines: cur= %08X, new= %08X, changes= %08X, cur_ipr= %08X\n",
+  //         (unsigned)ext_irq, (unsigned)v, (unsigned)changes, (unsigned)ipr);
+
   // for eache changed line check state
-  for (unsigned i = 0; i < IPIC_IRQ_LINES; ++i) {
+  for (unsigned i = 0; i < IPIC_IRQ_VECTORS; ++i) {
+    if (intmap[i] >= IPIC_IRQ_LN_VOID)
+      continue;
     uint32_t mask = 1 << i;
     uint32_t line_mask = (1 << intmap[i]);
     if (changes & line_mask) {
-      int state = v & line_mask;
+      // fprintf(stderr, "update lines: changed: vec= %u, line= %u\n",
+      //         i, (unsigned)intmap[i]);
+      uint32_t state = v & line_mask;
       if (invr & mask)
         state = !state;
       if (imr & mask) { // edge detection
@@ -296,6 +310,7 @@ void internal_ipic::update_lines_state(reg_t v)
         else
           ipr &= ~mask;
       }
+      // fprintf(stderr, "update lines: new ipr= %08X\n", (unsigned)ipr);
     }
   }
   // update current ext irq line's state
@@ -386,7 +401,7 @@ void  internal_ipic::set_soi(reg_t v)
   if (active_int) {
     // get irq with highest prio
     unsigned int_num = 0;
-    for (; int_num < IPIC_IRQ_LINES; ++int_num) {
+    for (; int_num < IPIC_IRQ_VECTORS; ++int_num) {
       if (active_int & (1 << int_num))
         break;
     }
@@ -460,7 +475,7 @@ reg_t internal_ipic::get_ridx()
 }
 void  internal_ipic::set_ridx(reg_t v)
 {
-  ridx = v % IPIC_IRQ_LINES;
+  ridx = v % IPIC_IRQ_VECTORS;
 }
 // ICSR
 reg_t internal_ipic::get_icsr()
@@ -502,23 +517,31 @@ void  internal_ipic::set_icsr(reg_t v)
     isar |= mask;
   else
     isar &= ~mask;
-  intmap[ridx] = (v >> IPIC_ICS_LN_OFFS) & ((1 << IPIC_ICS_LN_BITS) - 1);
+  unsigned line_num = (v >> IPIC_ICS_LN_OFFS) & ((1 << IPIC_ICS_LN_BITS) - 1);
+  intmap[ridx] = line_num;
 
-  // update pending state,
+  // update pending state
   ipr &= ~mask;
-  uint32_t line_mask = 1 << intmap[ridx];
-  if (imr & mask) {
-    // edge detection
-  } else {
-    // level detection
-    if (invr & mask) {
-      if ((ext_irq & line_mask) == 0)
-        ipr |= mask;
+  if (line_num < IPIC_IRQ_LN_VOID) {
+    uint32_t line_mask = 1 << intmap[ridx];
+    if (imr & mask) {
+      // edge detection
     } else {
-      if (ext_irq & line_mask)
-        ipr |= mask;
+      // level detection
+      if (invr & mask) {
+        if ((ext_irq & line_mask) == 0)
+          ipr |= mask;
+      } else {
+        if (ext_irq & line_mask)
+          ipr |= mask;
+      }
     }
   }
+
+  // fprintf(stderr, "set ICSR: ridx= %u, v= %08X, line= %u, ipr= %08X, ext_irq= %08X\n",
+  //         ridx, (unsigned)v, intmap[ridx], ipr, ext_irq);
+  // fprintf(stderr, "set ICSR: ier= %08X, imr= %08X, invr= %08X, isar= %08X, ipr= %08X\n",
+  //         ier, imr, invr, isar, ipr);
 }
 
 //----------------------------------------------------------
