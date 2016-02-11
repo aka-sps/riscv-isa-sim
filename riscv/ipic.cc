@@ -212,6 +212,13 @@ class internal_ipic : public ipic_implementation
 {
 public:
 
+  enum int_ipic_constants {
+    IPIC_IRQ_LINES   = 32, // number of supported ext lines
+    IPIC_IRQ_LN_VOID = IPIC_IRQ_LINES, // 'not-connected' value for number of ext line
+    IPIC_IRQ_VECTORS = 32, // number of implemented vectors
+    IPIC_ISV_NONE    = 32, // 'no in service-mode interrupts' value
+  };
+
   internal_ipic(sim_t *s, processor_t *p);
   ~internal_ipic() {}
 
