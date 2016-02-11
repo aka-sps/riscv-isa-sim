@@ -1,12 +1,13 @@
 // See LICENSE for license details.
 #include "processor.hxx"
-
+#include "ipic.hxx"
 #include "extension.hxx"
 #include "sim.hxx"
 #include "disasm.hxx"
 #include "htif.hxx"
 #include "common.h"
 #include "config.h"
+#include "spike_client.hxx"
 
 #include <cinttypes>
 #include <cmath>
@@ -27,7 +28,7 @@ processor_t::processor_t(const char* isa, sim_t* sim, uint32_t id)
 {
   parse_isa_string(isa);
 
-  ipic = new ipic_t(sim, this, ipic_t::internal);
+  ipic = new ipic_t(sim, this, ipic_t::external/*ipic_t::internal*/);
 
   mmu = new mmu_t(sim->mem, sim->memsz);
   mmu->set_processor(this);
@@ -389,7 +390,8 @@ void processor_t::set_csr(int which, reg_t val)
     case IPIC_CSR_GET_IRQ_STATE: // RO
       break;
     case IPIC_CSR_SET_IRQ_STATE:
-      sim->set_irq_state(val);
+      // sim->set_irq_state(val);
+      spike_vcs_TL::vcs_device_agent::instance().irq_state(val);
       break;
     case IPIC_CSR_MCICSR:
       ipic->set_mcicsr(val);
@@ -545,7 +547,8 @@ reg_t processor_t::get_csr(int which)
       return 0;
     // IPIC specific CSRs
     case IPIC_CSR_GET_IRQ_STATE:
-      return sim->get_irq_state();
+      // return sim->get_irq_state();
+      return spike_vcs_TL::vcs_device_agent::instance().irq_state();
     case IPIC_CSR_SET_IRQ_STATE: // WO
     case IPIC_CSR_MEOI: // WO
     case IPIC_CSR_SEOI: // WO

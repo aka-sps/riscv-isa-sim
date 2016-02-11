@@ -42,14 +42,18 @@ public:
         load(uint32_t addr, size_t len, uint8_t* bytes);
     bool
         store(uint32_t addr, size_t len, uint8_t const* bytes);
-    void
-        end_of_clock();
+    bool
+        csr_load(uint32_t addr, uint8_t mode, uint32_t *value);
+    bool
+        csr_store(uint32_t addr, uint8_t mode, uint32_t value);
     uint32_t
         irq_state(void);
     bool
         irq_state(uint32_t data);
     bool
         is_irq_active(void) const;
+    void
+        end_of_clock();
 
 private:
     bool m_was_transactions;

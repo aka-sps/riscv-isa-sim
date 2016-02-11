@@ -19,6 +19,7 @@ Request::serialize() const {
     res.push_back(static_cast<uint8_t>(m_cmd));
     switch (this->m_cmd) {
         case Request_type::read:
+        case Request_type::csr_read:
             {
                 res.resize(8, 0);
                 res[2] = this->m_size;
@@ -29,6 +30,7 @@ Request::serialize() const {
             }
             break;
         case Request_type::write:
+        case Request_type::csr_write:
             {
                 res.resize(12, 0);
                 res[2] = this->m_size;
@@ -73,6 +75,7 @@ ACK::deserialize(std::vector<uint8_t> const& a_buf) {
     uint32_t const state = (((((a_buf[4] << 8) | a_buf[5]) << 8) | a_buf[6]) << 8) | a_buf[7];
     switch (cmd) {
         case Request_type::read:
+        case Request_type::csr_read:
         case Request_type::reset_state:
         case Request_type::irq_lines_get:
             {

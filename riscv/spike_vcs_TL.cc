@@ -36,6 +36,15 @@ operator << (std::ostream& a_ostr, Request const& a_req) {
                 " data = " << std::hex << unsigned(a_req.m_data) << std::dec;
         }
     }
+    if (a_req.m_cmd == Request_type::csr_read || a_req.m_cmd == Request_type::csr_write) {
+        a_ostr <<
+            " address = " << std::hex << a_req.m_address << std::dec <<
+            " mode = " << unsigned(a_req.m_size);
+        if (a_req.m_cmd == Request_type::csr_write) {
+            a_ostr <<
+                " data = " << std::hex << unsigned(a_req.m_data) << std::dec;
+        }
+    }
     return a_ostr;
 }
 
@@ -46,7 +55,8 @@ operator << (std::ostream& a_ostr, ACK const& a_ack) {
         " sn = " << std::dec << unsigned(a_ack.m_sn) <<
         " cmd = " << unsigned(a_ack.m_cmd) <<
         " state = " << std::hex << unsigned(a_ack.m_state);
-    if (a_ack.m_cmd == Request_type::read || a_ack.m_cmd == Request_type::reset_state || a_ack.m_cmd == Request_type::irq_lines_get) {
+    if (a_ack.m_cmd == Request_type::read || a_ack.m_cmd == Request_type::csr_read
+        || a_ack.m_cmd == Request_type::reset_state || a_ack.m_cmd == Request_type::irq_lines_get) {
         a_ostr <<
             " data = " << std::hex << unsigned(a_ack.m_data) << std::dec;
     }

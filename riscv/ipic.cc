@@ -3,6 +3,7 @@
 #include "ipic.hxx"
 #include "processor.hxx"
 #include "sim.hxx"
+#include "spike_client.hxx"
 #include <vector>
 
 namespace riscv_isa_sim {
@@ -14,10 +15,8 @@ public:
   ipic_implementation(sim_t *s, processor_t *p) : sim(s), proc(p) {}
   virtual ~ipic_implementation() {}
 
-  // update state of ext irq lines
-  virtual void update_lines_state(reg_t v) {}
   // check IPIC inerrupt line state
-  virtual bool is_irq_active() { return false; }
+  virtual bool is_irq_active() = 0;
 
   // regsiter access functions
 
@@ -73,137 +72,176 @@ public:
   ext_ipic(sim_t *s, processor_t *p) : ipic_implementation(s, p) {}
   ~ext_ipic() {}
 
+  // check IPIC inerrupt line state
+  bool is_irq_active() override {
+    return spike_vcs_TL::vcs_device_agent::instance().is_irq_active();
+  }
+
   // regsiter access functions
 
   // MCICSR/SCICSR
-  reg_t get_mcicsr();
-  void  set_mcicsr(reg_t);
-  reg_t get_scicsr();
-  void  set_scicsr(reg_t);
+  reg_t get_mcicsr()      override;
+  void  set_mcicsr(reg_t) override;
+  reg_t get_scicsr()      override;
+  void  set_scicsr(reg_t) override;
   // MEOI/SEOI
-  void  set_meoi(reg_t);
-  void  set_seoi(reg_t);
+  void  set_meoi(reg_t)   override;
+  void  set_seoi(reg_t)   override;
   // SOI
-  void  set_soi(reg_t);
-  // CISV
-  reg_t get_cisv(); // RO
-  // ISR (aggregated)
-  reg_t get_isvr(); // RO
-  // IPR (aggregated)
-  reg_t get_ipr();
-  void  set_ipr(reg_t); // W1C
+  void  set_soi(reg_t)    override;
+  // CISV, RO
+  reg_t get_cisv()        override;
+  // ISR (aggregated), RO
+  reg_t get_isvr()        override;
+  // IPR (aggregated), W1C
+  reg_t get_ipr()         override;
+  void  set_ipr(reg_t)    override;
   // IER (aggregated)
-  reg_t get_ier();
-  void  set_ier(reg_t);
+  reg_t get_ier()         override;
+  void  set_ier(reg_t)    override;
   // IMR (aggregated)
-  reg_t get_imr();
-  void  set_imr(reg_t);
+  reg_t get_imr()         override;
+  void  set_imr(reg_t)    override;
   // INVR (aggregated)
-  reg_t get_invr();
-  void  set_invr(reg_t);
+  reg_t get_invr()        override;
+  void  set_invr(reg_t)   override;
   // ISAR (aggregated)
-  reg_t get_isar();
-  void  set_isar(reg_t);
+  reg_t get_isar()        override;
+  void  set_isar(reg_t)   override;
   // relative indexed access to interrupt control/status regs
   // IDX
-  reg_t get_ridx();
-  void  set_ridx(reg_t);
+  reg_t get_ridx()        override;
+  void  set_ridx(reg_t)   override;
   // ICSR
-  reg_t get_icsr();
-  void  set_icsr(reg_t);
+  reg_t get_icsr()        override;
+  void  set_icsr(reg_t)   override;
 };
 
 reg_t ext_ipic::get_mcicsr()
 {
-  return 0;
+  uint32_t value;
+  spike_vcs_TL::vcs_device_agent::instance().csr_load(IPIC_CSR_MCICSR_OFFS, 3, &value);
+  return value;
 }
 void  ext_ipic::set_mcicsr(reg_t v)
 {
+  spike_vcs_TL::vcs_device_agent::instance().csr_store(IPIC_CSR_MCICSR_OFFS, 3, v);
 }
 reg_t ext_ipic::get_scicsr()
 {
-  return 0;
+  uint32_t value;
+  spike_vcs_TL::vcs_device_agent::instance().csr_load(IPIC_CSR_SCICSR_OFFS, 1, &value);
+  return value;
 }
 void  ext_ipic::set_scicsr(reg_t v)
 {
+  spike_vcs_TL::vcs_device_agent::instance().csr_store(IPIC_CSR_SCICSR_OFFS, 1, v);
 }
 // MEOI/SEOI
 void  ext_ipic::set_meoi(reg_t v)
 {
+  spike_vcs_TL::vcs_device_agent::instance().csr_store(IPIC_CSR_MEOI_OFFS, 3, v);
 }
 void  ext_ipic::set_seoi(reg_t v)
 {
+  spike_vcs_TL::vcs_device_agent::instance().csr_store(IPIC_CSR_SEOI_OFFS, 1, v);
 }
 // SOI
 void  ext_ipic::set_soi(reg_t v)
 {
+  spike_vcs_TL::vcs_device_agent::instance().csr_store(IPIC_CSR_SOI_OFFS, 3, v);
 }
 // CISV
 reg_t ext_ipic::get_cisv() // RO
 {
-  return 0;
+  uint32_t value;
+  spike_vcs_TL::vcs_device_agent::instance().csr_load(IPIC_CSR_CISV_OFFS, 3, &value);
+  return value;
 }
 // ISR (aggregated)
 reg_t ext_ipic::get_isvr() // RO
 {
-  return 0;
+  uint32_t value;
+  spike_vcs_TL::vcs_device_agent::instance().csr_load(IPIC_CSR_ISVR_OFFS, 3, &value);
+  return value;
 }
 // IPR (aggregated)
 reg_t ext_ipic::get_ipr()
 {
-  return 0;
+  uint32_t value;
+  spike_vcs_TL::vcs_device_agent::instance().csr_load(IPIC_CSR_IPR_OFFS, 3, &value);
+  return value;
 }
 void  ext_ipic::set_ipr(reg_t v) // W1C
 {
+  spike_vcs_TL::vcs_device_agent::instance().csr_store(IPIC_CSR_IPR_OFFS, 3, v);
 }
 // IER (aggregated)
 reg_t ext_ipic::get_ier()
 {
-  return 0;
+  uint32_t value;
+  spike_vcs_TL::vcs_device_agent::instance().csr_load(IPIC_CSR_IER_OFFS, 3, &value);
+  return value;
 }
 void  ext_ipic::set_ier(reg_t v)
 {
+  spike_vcs_TL::vcs_device_agent::instance().csr_store(IPIC_CSR_IER_OFFS, 3, v);
 }
 // IMR (aggregated)
 reg_t ext_ipic::get_imr()
 {
-  return 0;
+  uint32_t value;
+  spike_vcs_TL::vcs_device_agent::instance().csr_load(IPIC_CSR_IMR_OFFS, 3, &value);
+  return value;
 }
 void  ext_ipic::set_imr(reg_t v)
 {
+  spike_vcs_TL::vcs_device_agent::instance().csr_store(IPIC_CSR_IMR_OFFS, 3, v);
 }
 // INVR (aggregated)
 reg_t ext_ipic::get_invr()
 {
-  return 0;
+  uint32_t value;
+  spike_vcs_TL::vcs_device_agent::instance().csr_load(IPIC_CSR_INVR_OFFS, 3, &value);
+  return value;
 }
 void  ext_ipic::set_invr(reg_t v)
 {
+  spike_vcs_TL::vcs_device_agent::instance().csr_store(IPIC_CSR_INVR_OFFS, 3, v);
 }
 // ISAR (aggregated)
 reg_t ext_ipic::get_isar()
 {
-  return 0;
+  uint32_t value;
+  spike_vcs_TL::vcs_device_agent::instance().csr_load(IPIC_CSR_ISAR_OFFS, 3, &value);
+  return value;
 }
 void  ext_ipic::set_isar(reg_t v)
 {
+  spike_vcs_TL::vcs_device_agent::instance().csr_store(IPIC_CSR_ISAR_OFFS, 3, v);
 }
 // rel indexed access to interrupt control/status regs
 // IDX
 reg_t ext_ipic::get_ridx()
 {
-  return 0;
+  uint32_t value;
+  spike_vcs_TL::vcs_device_agent::instance().csr_load(IPIC_CSR_OFFS_OFFS, 3, &value);
+  return value;
 }
 void  ext_ipic::set_ridx(reg_t v)
 {
+  spike_vcs_TL::vcs_device_agent::instance().csr_store(IPIC_CSR_OFFS_OFFS, 3, v);
 }
 // ICSR
 reg_t ext_ipic::get_icsr()
 {
-  return 0;
+  uint32_t value;
+  spike_vcs_TL::vcs_device_agent::instance().csr_load(IPIC_CSR_ICSR_OFFS, 3, &value);
+  return value;
 }
 void  ext_ipic::set_icsr(reg_t v)
 {
+  spike_vcs_TL::vcs_device_agent::instance().csr_store(IPIC_CSR_ICSR_OFFS, 3, v);
 }
 //----------------------------------------------------------
 // internal IPIC
@@ -222,49 +260,47 @@ public:
   internal_ipic(sim_t *s, processor_t *p);
   ~internal_ipic() {}
 
-  // update state of ext irq lines
-  void update_lines_state(reg_t v);
   // check IPIC inerrupt line state
   bool is_irq_active();
 
   // regsiter access functions
 
   // MCICSR/SCICSR
-  reg_t get_mcicsr();
-  void  set_mcicsr(reg_t);
-  reg_t get_scicsr();
-  void  set_scicsr(reg_t);
+  reg_t get_mcicsr()      override;
+  void  set_mcicsr(reg_t) override;
+  reg_t get_scicsr()      override;
+  void  set_scicsr(reg_t) override;
   // MEOI/SEOI
-  void  set_meoi(reg_t);
-  void  set_seoi(reg_t);
+  void  set_meoi(reg_t)   override;
+  void  set_seoi(reg_t)   override;
   // SOI
-  void  set_soi(reg_t);
-  // CISV
-  reg_t get_cisv(); // RO
-  // ISVR (aggregated)
-  reg_t get_isvr(); // RO
-  // IPR (aggregated)
-  reg_t get_ipr();
-  void  set_ipr(reg_t); // WC
+  void  set_soi(reg_t)    override;
+  // CISV, RO
+  reg_t get_cisv()        override;
+  // ISR (aggregated), RO
+  reg_t get_isvr()        override;
+  // IPR (aggregated), W1C
+  reg_t get_ipr()         override;
+  void  set_ipr(reg_t)    override;
   // IER (aggregated)
-  reg_t get_ier();
-  void  set_ier(reg_t);
+  reg_t get_ier()         override;
+  void  set_ier(reg_t)    override;
   // IMR (aggregated)
-  reg_t get_imr();
-  void  set_imr(reg_t);
+  reg_t get_imr()         override;
+  void  set_imr(reg_t)    override;
   // INVR (aggregated)
-  reg_t get_invr();
-  void  set_invr(reg_t);
+  reg_t get_invr()        override;
+  void  set_invr(reg_t)   override;
   // ISAR (aggregated)
-  reg_t get_isar();
-  void  set_isar(reg_t);
-  // rel indexed access to interrupt control/status regs
+  reg_t get_isar()        override;
+  void  set_isar(reg_t)   override;
+  // relative indexed access to interrupt control/status regs
   // IDX
-  reg_t get_ridx();
-  void  set_ridx(reg_t);
+  reg_t get_ridx()        override;
+  void  set_ridx(reg_t)   override;
   // ICSR
-  reg_t get_icsr();
-  void  set_icsr(reg_t);
+  reg_t get_icsr()        override;
+  void  set_icsr(reg_t)   override;
 
 private:
   uint32_t isvr;
@@ -278,6 +314,9 @@ private:
   uint32_t ridx;
   uint32_t ext_irq; // current state of irq lines (for detection of edges)
   std::vector<unsigned> in_service; // back = current in-service interrupt
+
+  // update state of ext irq lines
+  void update_lines_state();
 };
 
 internal_ipic::internal_ipic(sim_t *s, processor_t *p)
@@ -289,8 +328,9 @@ internal_ipic::internal_ipic(sim_t *s, processor_t *p)
 }
 
 // update state of ext irq lines
-void internal_ipic::update_lines_state(reg_t v)
+void internal_ipic::update_lines_state()
 {
+  uint32_t v = spike_vcs_TL::vcs_device_agent::instance().irq_state();
   uint32_t changes = ext_irq ^ v;
 
   // fprintf(stderr, "update lines: cur= %08X, new= %08X, changes= %08X, cur_ipr= %08X\n",
@@ -326,6 +366,8 @@ void internal_ipic::update_lines_state(reg_t v)
 // check IPIC inerrupt line state
 bool internal_ipic::is_irq_active()
 {
+  update_lines_state();
+
   // mask lower prio irqs
   reg_t cisv = get_cisv();
   uint32_t en_mask = ~0;
@@ -554,12 +596,16 @@ void  internal_ipic::set_icsr(reg_t v)
 //----------------------------------------------------------
 // IPIC
 
-ipic_t::ipic_t(sim_t *s, processor_t *p, emulation_mode mode)
+ipic_t::ipic_t(sim_t *s, processor_t *p, emulation_mode _mode)
+  : mode(_mode)
 {
-  if (mode == emulation_mode::internal)
+  if (mode == emulation_mode::internal) {
+    // fprintf(stderr, "ipic: init internal\n");
     impl = new internal_ipic(s, p);
-  else
+  } else {
+    // fprintf(stderr, "ipic: init external\n");
     impl = new ext_ipic(s, p);
+  }
 }
 
 ipic_t::~ipic_t()
@@ -567,15 +613,12 @@ ipic_t::~ipic_t()
   delete impl;
 }
 
-// update state of ext irq lines
-void ipic_t::update_lines_state(reg_t v)
-{
-  impl->update_lines_state(v);
-}
 // check IPIC inerrupt line state
 bool ipic_t::is_irq_active()
 {
-  return impl->is_irq_active();
+  bool res = impl->is_irq_active();
+  // fprintf(stderr, "ipic: is_irq_active(): %d\n", res);
+  return res;
 }
 
 reg_t ipic_t::get_mcicsr()

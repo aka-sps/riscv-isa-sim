@@ -185,16 +185,6 @@ bool sim_t::mmio_store(reg_t addr, size_t len, const uint8_t* bytes)
     return bus.store(addr, len, bytes);
 }
 
-reg_t sim_t::get_irq_state(void)
-{
-    return spike_vcs_TL::vcs_device_agent::instance().irq_state();
-}
-
-void sim_t::set_irq_state(reg_t state)
-{
-    spike_vcs_TL::vcs_device_agent::instance().irq_state((uint32_t)state);
-}
-
 void sim_t::make_device_tree()
 {
     char buf[32];

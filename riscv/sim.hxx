@@ -89,9 +89,6 @@ private:
   reg_t get_pc(const std::vector<std::string>& args);
   reg_t get_tohost(const std::vector<std::string>& args);
 
-  reg_t get_irq_state(void);
-  void set_irq_state(reg_t state);
-
   friend class htif_isasim_t;
   friend class processor_t;
   friend class mmu_t;

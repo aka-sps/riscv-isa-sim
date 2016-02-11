@@ -5,11 +5,8 @@
 
 #include "common.h"
 #include "config.h"
-// #include <cstdlib>
 #include <cstdint>
-// #include <vector>
 #include "decode.hxx"
-// #include <type_traits>
 
 namespace riscv_isa_sim {
 
@@ -17,6 +14,21 @@ class sim_t;
 class processor_t;
 
 enum ipic_constants {
+  IPIC_CSR_MCICSR_OFFS = 0,
+  IPIC_CSR_MEOI_OFFS   = 1,
+  IPIC_CSR_SOI_OFFS    = 2,
+  IPIC_CSR_CISV_OFFS   = 3,
+  IPIC_CSR_ISVR_OFFS   = 4,
+  IPIC_CSR_IPR_OFFS    = 5,
+  IPIC_CSR_IER_OFFS    = 6,
+  IPIC_CSR_IMR_OFFS    = 7,
+  IPIC_CSR_INVR_OFFS   = 8,
+  IPIC_CSR_ISAR_OFFS   = 9,
+  IPIC_CSR_OFFS_OFFS   = 10,
+  IPIC_CSR_ICSR_OFFS   = 11,
+  IPIC_CSR_SCICSR_OFFS = 0,
+  IPIC_CSR_SEOI_OFFS   = 1,
+
   IPIC_CSR_M_BASE = 0x790,
   IPIC_CSR_MCICSR = IPIC_CSR_M_BASE,
   IPIC_CSR_MEOI   = IPIC_CSR_M_BASE + 1,
@@ -60,18 +72,17 @@ class ipic_t
 {
 public:
   enum emulation_mode {
-    internal = 0,
+    none = 0,
+    internal,
     external,
   };
 
   ipic_t(sim_t *sim, processor_t *proc, emulation_mode mode = internal);
   ~ipic_t();
 
-  // update state of ext irq lines
-  void update_lines_state(reg_t v);
   // check IPIC inerrupt line state
   bool is_irq_active();
-
+  // get current IPIC mode
   emulation_mode get_mode() const {
     return mode;
   }

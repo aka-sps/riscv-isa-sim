@@ -5,13 +5,13 @@
 #include "config.h"
 #include "devices.hxx"
 #include "decode.hxx"
-#include "ipic.hxx"
 #include <cstring>
 #include <vector>
 #include <map>
 
 namespace riscv_isa_sim {
 class processor_t;
+class ipic_t;
 class mmu_t;
 typedef reg_t (*insn_func_t)(processor_t*, insn_t, reg_t);
 class sim_t;

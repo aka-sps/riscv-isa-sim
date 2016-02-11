@@ -71,6 +71,39 @@ vcs_device_agent::store(uint32_t addr, size_t len, uint8_t const* bytes)
     return this->m_was_transactions = true;
 }
 
+bool
+vcs_device_agent::csr_load(uint32_t addr, uint8_t mode, uint32_t *value)
+{
+    // LOGGER << "vcs_device_agent::csr_load: addr= " << std::hex << addr << ", mode= " << mode << std::dec << std::endl;
+    auto const ack = Client::instance().request(Request_type::csr_read, addr, mode);
+    m_state = ack->m_state;
+    if (ack->m_cmd == Request_type::csr_read) {
+        /// \warning Little endian only
+        *value = ack->m_data;
+    } else if (ack->m_cmd == Request_type::reset_state && ack->m_data != 0) {
+        throw Reset_active();
+    } else {
+        throw Exception();
+    }
+    return this->m_was_transactions = true;
+}
+
+bool
+vcs_device_agent::csr_store(uint32_t addr, uint8_t mode, uint32_t value)
+{
+    /// \warning Little endian only
+    // LOGGER << "vcs_device_agent::csr_store: addr= " << std::hex << addr << ", mode= " << mode << ", val= " << value << std::dec << std::endl;
+    auto const ack = Client::instance().request(Request_type::csr_write, addr, mode, value);
+    m_state = ack->m_state;
+    if (ack->m_cmd == Request_type::csr_write) {
+    } else if (ack->m_cmd == Request_type::reset_state && ack->m_data != 0) {
+        throw Reset_active();
+    } else {
+        throw Exception();
+    }
+    return this->m_was_transactions = true;
+}
+
 void
 vcs_device_agent::end_of_clock()
 {
@@ -91,11 +124,13 @@ vcs_device_agent::end_of_clock()
 uint32_t
 vcs_device_agent::irq_state(void)
 {
+    // LOGGER << "vcs_device_agent::irq_state: GET" << std::endl;
     auto const ack = Client::instance().request(Request_type::irq_lines_get);
     uint32_t data;
     m_state = ack->m_state;
     if (ack->m_cmd == Request_type::irq_lines_get) {
         data = ack->m_data;
+        // LOGGER << "vcs_device_agent::irq_state: GET data=" << data << std::endl;
     } else if (ack->m_cmd == Request_type::reset_state && ack->m_data != 0) {
         throw Reset_active();
     } else {
@@ -108,7 +143,7 @@ vcs_device_agent::irq_state(void)
 bool
 vcs_device_agent::irq_state(uint32_t data)
 {
-    // LOGGER << "vcs_device_agent::store: len=" << len << std::endl;
+    // LOGGER << "vcs_device_agent::irq_state: SET data=" << data << std::endl;
     auto const ack = Client::instance().request(Request_type::irq_lines_set, data);
     m_state = ack->m_state;
     if (ack->m_cmd == Request_type::irq_lines_set) {

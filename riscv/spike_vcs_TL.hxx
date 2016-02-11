@@ -22,11 +22,13 @@ namespace spike_vcs_TL {
 enum class Request_type : uint8_t
 {
     skip = 0,
-    read = 1,
-    write = 2,
-    reset_state = 3,
-    irq_lines_set = 4,
-    irq_lines_get = 5,
+    read,
+    write,
+    csr_read,
+    csr_write,
+    irq_lines_set,
+    irq_lines_get,
+    reset_state,
     req_num,
 };
 
