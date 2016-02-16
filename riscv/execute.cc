@@ -59,16 +59,10 @@ static reg_t execute_insn(processor_t* p, reg_t pc, insn_fetch_t fetch)
     p->update_histogram(pc);
   }
 
-  if (p->get_ipic()->get_mode() == ipic_t::external)
-    spike_vcs_TL::vcs_device_agent::instance().end_of_clock();
+  p->get_ipic()->update_proc_irq_state();
 
-  if (p->get_ipic()->is_irq_active()) {
-    p->get_state().mip |= (MIP_MXIP | MIP_HXIP | MIP_SXIP);
-    // fprintf(stderr, "set mip: %08X\n", (unsigned)p->get_state().mip);
-  } else {
-    p->get_state().mip &= ~(MIP_MXIP | MIP_HXIP | MIP_SXIP);
-    // fprintf(stderr, "clr mip: %08X\n", (unsigned)p->get_state().mip);
-  }
+  if (p->get_ipic()->get_mode() == ipic_t::none)
+    spike_vcs_TL::vcs_device_agent::instance().end_of_clock();
 
   return npc;
 }

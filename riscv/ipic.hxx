@@ -10,44 +10,48 @@
 
 namespace riscv_isa_sim {
 
-class sim_t;
 class processor_t;
 
 enum ipic_constants {
-  IPIC_CSR_MCICSR_OFFS = 0,
-  IPIC_CSR_MEOI_OFFS   = 1,
-  IPIC_CSR_SOI_OFFS    = 2,
-  IPIC_CSR_CISV_OFFS   = 3,
-  IPIC_CSR_ISVR_OFFS   = 4,
-  IPIC_CSR_IPR_OFFS    = 5,
-  IPIC_CSR_IER_OFFS    = 6,
-  IPIC_CSR_IMR_OFFS    = 7,
-  IPIC_CSR_INVR_OFFS   = 8,
-  IPIC_CSR_ISAR_OFFS   = 9,
-  IPIC_CSR_OFFS_OFFS   = 10,
-  IPIC_CSR_ICSR_OFFS   = 11,
-  IPIC_CSR_SCICSR_OFFS = 0,
-  IPIC_CSR_SEOI_OFFS   = 1,
+  IPIC_CSR_CISV   = 0,
+  IPIC_CSR_CICSR  = 1,
+  IPIC_CSR_IPR    = 2,
+  IPIC_CSR_ISVR   = 3,
+  IPIC_CSR_EOI    = 4,
+  IPIC_CSR_SOI    = 5,
+  IPIC_CSR_IDX    = 6,
+  IPIC_CSR_ICSR   = 7,
+  // IPIC_CSR_IER_OFFS    = 6,
+  // IPIC_CSR_IMR_OFFS    = 7,
+  // IPIC_CSR_INVR_OFFS   = 8,
+  // IPIC_CSR_ISAR_OFFS   = 9,
+  // IPIC_CSR_IDX_OFFS    = 10,
+  // IPIC_CSR_ICSR_OFFS   = 11,
+
+  // IPIC_CSR_SCICSR_OFFS = 0,
+  // IPIC_CSR_SEOI_OFFS   = 1,
 
   IPIC_CSR_M_BASE = 0x790,
-  IPIC_CSR_MCICSR = IPIC_CSR_M_BASE,
-  IPIC_CSR_MEOI   = IPIC_CSR_M_BASE + 1,
-  IPIC_CSR_SOI    = IPIC_CSR_M_BASE + 2,
-  IPIC_CSR_CISV   = IPIC_CSR_M_BASE + 3,
-  IPIC_CSR_ISVR   = IPIC_CSR_M_BASE + 4,
-  IPIC_CSR_IPR    = IPIC_CSR_M_BASE + 5,
-  IPIC_CSR_IER    = IPIC_CSR_M_BASE + 6,
-  IPIC_CSR_IMR    = IPIC_CSR_M_BASE + 7,
-  IPIC_CSR_INVR   = IPIC_CSR_M_BASE + 8,
-  IPIC_CSR_ISAR   = IPIC_CSR_M_BASE + 9,
-  IPIC_CSR_IDX    = IPIC_CSR_M_BASE + 10,
-  IPIC_CSR_ICSR   = IPIC_CSR_M_BASE + 11,
+  IPIC_CSR_MCICSR = IPIC_CSR_M_BASE + IPIC_CSR_CICSR,
+  IPIC_CSR_MEOI   = IPIC_CSR_M_BASE + IPIC_CSR_EOI,
+  IPIC_CSR_MSOI   = IPIC_CSR_M_BASE + IPIC_CSR_SOI,
+  IPIC_CSR_MCISV  = IPIC_CSR_M_BASE + IPIC_CSR_CISV,
+  IPIC_CSR_MISVR  = IPIC_CSR_M_BASE + IPIC_CSR_ISVR,
+  IPIC_CSR_MIPR   = IPIC_CSR_M_BASE + IPIC_CSR_IPR,
+  IPIC_CSR_MIDX   = IPIC_CSR_M_BASE + IPIC_CSR_IDX,
+  IPIC_CSR_MICSR  = IPIC_CSR_M_BASE + IPIC_CSR_ICSR,
   IPIC_CSR_S_BASE = 0x590,
-  IPIC_CSR_SCICSR = IPIC_CSR_S_BASE,
-  IPIC_CSR_SEOI   = IPIC_CSR_S_BASE + 1,
+  IPIC_CSR_SCICSR = IPIC_CSR_S_BASE + IPIC_CSR_CICSR,
+  IPIC_CSR_SEOI   = IPIC_CSR_S_BASE + IPIC_CSR_EOI,
+  IPIC_CSR_SSOI   = IPIC_CSR_S_BASE + IPIC_CSR_SOI,
+  IPIC_CSR_SCISV  = IPIC_CSR_S_BASE + IPIC_CSR_CISV,
+  IPIC_CSR_SISVR  = IPIC_CSR_S_BASE + IPIC_CSR_ISVR,
+  IPIC_CSR_SIPR   = IPIC_CSR_S_BASE + IPIC_CSR_IPR,
+  IPIC_CSR_SIDX   = IPIC_CSR_S_BASE + IPIC_CSR_IDX,
+  IPIC_CSR_SICSR  = IPIC_CSR_S_BASE + IPIC_CSR_ICSR,
 
-  IPIC_CSR_GET_IRQ_STATE = 0x7c0,
-  IPIC_CSR_SET_IRQ_STATE = 0x7c1,
+  IPIC_CSR_GET_IRQ_STATE = 0x79e,
+  IPIC_CSR_SET_IRQ_STATE = 0x79f,
 };
 
 enum ipic_ics_bits {
@@ -77,58 +81,24 @@ public:
     external,
   };
 
-  ipic_t(sim_t *sim, processor_t *proc, emulation_mode mode = internal);
+  ipic_t(processor_t *proc, emulation_mode mode = internal);
   ~ipic_t();
 
-  // check IPIC inerrupt line state
-  bool is_irq_active();
+  // update ext int flags
+  void update_proc_irq_state();
   // get current IPIC mode
   emulation_mode get_mode() const {
     return mode;
   }
 
   // regsiter access functions
-
-  // MCICSR/SCICSR
-  reg_t get_mcicsr();
-  void  set_mcicsr(reg_t);
-  reg_t get_scicsr();
-  void  set_scicsr(reg_t);
-  // MEOI/SEOI
-  void  set_meoi(reg_t);
-  void  set_seoi(reg_t);
-  // SOI
-  void  set_soi(reg_t);
-  // CISV
-  reg_t get_cisv(); // RO
-  // ISVR (aggregated)
-  reg_t get_isvr(); // RO
-  // IPR (aggregated)
-  reg_t get_ipr();
-  void  set_ipr(reg_t); // W1C
-  // IER (aggregated)
-  reg_t get_ier();
-  void  set_ier(reg_t);
-  // IMR (aggregated)
-  reg_t get_imr();
-  void  set_imr(reg_t);
-  // INVR (aggregated)
-  reg_t get_invr();
-  void  set_invr(reg_t);
-  // ISAR (aggregated)
-  reg_t get_isar();
-  void  set_isar(reg_t);
-  // relative indexed access to interrupt control/status regs
-  // IDX
-  reg_t get_ridx();
-  void  set_ridx(reg_t);
-  // ICSR
-  reg_t get_icsr();
-  void  set_icsr(reg_t);
+  reg_t get_csr(reg_t idx, reg_t samode);
+  void  set_csr(reg_t idx, reg_t samode, reg_t val);
 
 private:
   emulation_mode mode;
   ipic_implementation *impl;
+  processor_t *proc;
 };
 }  // namespace riscv_isa_sim
 
