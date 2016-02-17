@@ -454,10 +454,10 @@ void ipic_t::update_proc_irq_state()
 {
   if (impl) {
     if (impl->is_irq_active()) {
-      proc->get_state().mip |= (MIP_MXIP | MIP_HXIP | MIP_SXIP);
+      proc->get_state().mip |= MIP_MXIP;
       fprintf(stderr, "set mip: %08X\n", (unsigned)proc->get_state().mip);
     } else {
-      proc->get_state().mip &= ~(MIP_MXIP | MIP_HXIP | MIP_SXIP);
+      proc->get_state().mip &= ~MIP_MXIP;
       fprintf(stderr, "clr mip: %08X\n", (unsigned)proc->get_state().mip);
     }
   }
