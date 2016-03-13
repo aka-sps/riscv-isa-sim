@@ -65,10 +65,10 @@ namespace TLB {
   // move type field to bit#1
   enum TLB_page_bits {
     SV32_PAGE_MPPN_BITS = 10,
-    SV32_PAGE_MPPN_OFFS = 19, // physical page number (megapage)
+    SV32_PAGE_MPPN_OFFS = 20, // physical page number (megapage)
     SV32_PAGE_MPPN = ((1 << SV32_PAGE_MPPN_BITS) - 1) << SV32_PAGE_MPPN_OFFS,
     SV32_PAGE_PPN_BITS = 20,
-    SV32_PAGE_PPN_OFFS = 9, // physical page number
+    SV32_PAGE_PPN_OFFS = 10, // physical page number
     SV32_PAGE_PPN = ((1 << SV32_PAGE_PPN_BITS) - 1) << SV32_PAGE_PPN_OFFS,
     SV32_PAGE_MP_BITS = 1, // megapage
     SV32_PAGE_MP_OFFS = 8,
@@ -148,6 +148,10 @@ namespace TLB {
   inline unsigned tlbe_type(page_attr pattr) {
     return (pattr & SV32_PAGE_TYPE) >> SV32_PAGE_TYPE_OFFS;
   }
+  // extract valid bit
+  inline unsigned tlbe_valid(page_attr pattr) {
+    return (pattr & SV32_PAGE_VALID) != 0;
+  }
   // extract idx+tag from vaddr
   inline virt_addr tlbe_tag(virt_addr vaddr, bool megapage) {
     return vaddr >> (megapage ? SV32_MPAGESZ_BITS : TLB::SV32_PAGESZ_BITS);
@@ -193,18 +197,19 @@ namespace TLB {
   // TODO: use CSR_MBADADDR instead of TLB::CSR_I_VADDR and TLB::CSR_D_VADDR
   enum TLB_regs {
     // instruction TLB setup CSRs
-    CSR_I_PATTR       = 0x790, // ITLB page attr (trigger, write after itlb_vaddr)
-    CSR_I_VADDR       = 0x791, // ITLB vaddr (pagevaddr, write first)
+    CSR_MMU_BASE = 0x7a0,       // ITLB page attr (trigger, write after itlb_vaddr)
+    CSR_I_PATTR = CSR_MMU_BASE, // ITLB page attr (trigger, write after itlb_vaddr)
+    CSR_I_VADDR,                // ITLB vaddr (pagevaddr, write first)
     // data TLB setup CSRs
-    CSR_D_PATTR       = 0x792, // DTLB page attr (trigger, write after dtlb_vaddr)
-    CSR_D_VADDR       = 0x793, // DTLB vaddr (write first)
+    CSR_D_PATTR,                // DTLB page attr (trigger, write after dtlb_vaddr)
+    CSR_D_VADDR,                // DTLB vaddr (write first)
     // get instruction/data TLB entry data
-    CSR_I_ENTRY_SCAN  = 0x794, // get ITLB entry data, tlb_idx = way*sets_num+idx
-    CSR_D_ENTRY_SCAN  = 0x795, // get DTLB entry data, tlb_idx = way*sets_num+idx
-    CSR_I_ENTRY_PATTR = 0x796, // ITLB entry: page attr
-    CSR_I_ENTRY_VADDR = 0x797, // ITLB entry: vaddr
-    CSR_D_ENTRY_PATTR = 0x798, // DTLB entry: page attr
-    CSR_D_ENTRY_VADDR = 0x799, // DTLB entry: vaddr
+    CSR_I_ENTRY_SCAN,           // get ITLB entry data, tlb_idx = way*sets_num+idx
+    CSR_D_ENTRY_SCAN,           // get DTLB entry data, tlb_idx = way*sets_num+idx
+    CSR_I_ENTRY_PATTR,          // ITLB entry: page attr
+    CSR_I_ENTRY_VADDR,          // ITLB entry: vaddr
+    CSR_D_ENTRY_PATTR,          // DTLB entry: page attr
+    CSR_D_ENTRY_VADDR,          // DTLB entry: vaddr
   };
 }
 #endif // !HW_PAGEWALKER

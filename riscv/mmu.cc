@@ -170,7 +170,7 @@ TLB::tlb_entry *mmu_t::search_tlbi(TLB::virt_addr addr)
   // search megapage
   TLB::tlb_entry *entry = tlbi + tlbe_mega_idx;
   for (unsigned i = 0; i < TLB::I_WAYS; ++i, entry += TLB::I_SETS) {
-    if ((entry->pattr & TLB::SV32_PAGE_VALID) && (entry->pattr & TLB::SV32_PAGE_MP) && entry->vaddr == tlbe_mega_vaddr) {
+      if (TLB::tlbe_valid(entry->pattr) && TLB::tlbe_megapage(entry->pattr) && entry->vaddr == tlbe_mega_vaddr) {
 #if (DBG_TLB_LVL > 1)
       std::cerr << "found M way#" << i << ">";
 #endif // DBG_TLB_LVL
@@ -180,7 +180,7 @@ TLB::tlb_entry *mmu_t::search_tlbi(TLB::virt_addr addr)
   // search ordinar page
   entry = tlbi + tlbe_idx;
   for (unsigned i = 0; i < TLB::I_WAYS; ++i, entry += TLB::I_SETS) {
-    if ((entry->pattr & TLB::SV32_PAGE_VALID) && !(entry->pattr & TLB::SV32_PAGE_MP) && entry->vaddr == tlbe_vaddr) {
+    if (TLB::tlbe_valid(entry->pattr) && !TLB::tlbe_megapage(entry->pattr) && entry->vaddr == tlbe_vaddr) {
 #if (DBG_TLB_LVL > 1)
       std::cerr << "found way#" << i << ">";
 #endif // DBG_TLB_LVL
@@ -209,7 +209,7 @@ TLB::tlb_entry *mmu_t::search_tlbd(TLB::virt_addr addr)
   // search megapage
   TLB::tlb_entry *entry = tlbd + tlbe_mega_idx;
   for (unsigned i = 0; i < TLB::D_WAYS; ++i, entry += TLB::D_SETS) {
-    if ((entry->pattr & TLB::SV32_PAGE_VALID) && (entry->pattr & TLB::SV32_PAGE_MP) && entry->vaddr == tlbe_mega_vaddr) {
+    if (TLB::tlbe_valid(entry->pattr) && TLB::tlbe_megapage(entry->pattr) && entry->vaddr == tlbe_mega_vaddr) {
 #if (DBG_TLB_LVL > 1)
       std::cerr << "found M way#" << i << ">";
 #endif // DBG_TLB_LVL
@@ -219,7 +219,7 @@ TLB::tlb_entry *mmu_t::search_tlbd(TLB::virt_addr addr)
   // search ordinar page
   entry = tlbd + tlbe_idx;
   for (unsigned i = 0; i < TLB::D_WAYS; ++i, entry += TLB::D_SETS) {
-    if ((entry->pattr & TLB::SV32_PAGE_VALID) && !(entry->pattr & TLB::SV32_PAGE_MP) && entry->vaddr == tlbe_vaddr) {
+      if (TLB::tlbe_valid(entry->pattr) && !TLB::tlbe_megapage(entry->pattr) && entry->vaddr == tlbe_vaddr) {
 #if (DBG_TLB_LVL > 1)
       std::cerr << "found way#" << i << ">";
 #endif // DBG_TLB_LVL
@@ -231,6 +231,49 @@ TLB::tlb_entry *mmu_t::search_tlbd(TLB::virt_addr addr)
   std::cerr << "miss>";
 #endif // DBG_TLB_LVL
   return 0;
+}
+
+// decode type and attr bits
+static const char *dbg_ptype2str(unsigned pattr)
+{
+  const char *type_str;
+  switch (pattr) {
+  default:
+    type_str = "???"; break;
+  case TLB::PTE_NEXT:
+    type_str = ""; break; //"NEXT"; break;
+  case TLB::PTE_G_NEXT:
+    type_str = ""; break; //"G_NEXT"; break;
+  case TLB::PTE_SR_URX:
+    type_str = "SR_URX"; break;
+  case TLB::PTE_SRW_URWX:
+    type_str = "SRW_URWX"; break;
+  case TLB::PTE_SR_UR:
+    type_str = "SR_UR"; break;
+  case TLB::PTE_SRW_URW:
+    type_str = "SRW_URW"; break;
+  case TLB::PTE_SRX_URX:
+    type_str = "SRX_URX"; break;
+  case TLB::PTE_SRWX_URWX:
+    type_str = "SRWX_URWX"; break;
+  case TLB::PTE_SR:
+    type_str = "SR"; break;
+  case TLB::PTE_SRW:
+    type_str = "SRW"; break;
+  case TLB::PTE_SRX:
+    type_str = "SRX"; break;
+  case TLB::PTE_SRWX:
+    type_str = "SRWX"; break;
+  case TLB::PTE_G_SR:
+    type_str = "G_SR"; break;
+  case TLB::PTE_G_SRW:
+    type_str = "G_SRW"; break;
+  case TLB::PTE_G_SRX:
+    type_str = "G_SRX"; break;
+  case TLB::PTE_G_SRWX:
+    type_str = "G_SRWX"; break;
+  }
+  return type_str;
 }
 
 void mmu_t::dbg_print_tlb(TLB::tlb_entry *tlb, unsigned tlb_sets, unsigned tlb_ways)
@@ -251,53 +294,79 @@ void mmu_t::dbg_print_tlb(TLB::tlb_entry *tlb, unsigned tlb_sets, unsigned tlb_w
     for (unsigned way = 0; way < tlb_ways; ++way) {
       TLB::page_attr attr = e[way * tlb_sets].pattr;
       // decode type
-      const char *type_str;
-      switch (TLB::tlbe_type(attr)) {
-      default:
-        type_str = "???"; break;
-      case TLB::PTE_NEXT:
-        type_str = "NEXT"; break;
-      case TLB::PTE_G_NEXT:
-        type_str = "G_NEXT"; break;
-      case TLB::PTE_SR_URX:
-        type_str = "SR_URX"; break;
-      case TLB::PTE_SRW_URWX:
-        type_str = "SRW_URWX"; break;
-      case TLB::PTE_SR_UR:
-        type_str = "SR_UR"; break;
-      case TLB::PTE_SRW_URW:
-        type_str = "SRW_URW"; break;
-      case TLB::PTE_SRX_URX:
-        type_str = "SRX_URX"; break;
-      case TLB::PTE_SRWX_URWX:
-        type_str = "SRWX_URWX"; break;
-      case TLB::PTE_SR:
-        type_str = "SR"; break;
-      case TLB::PTE_SRW:
-        type_str = "SRW"; break;
-      case TLB::PTE_SRX:
-        type_str = "SRX"; break;
-      case TLB::PTE_SRWX:
-        type_str = "SRWX"; break;
-      case TLB::PTE_G_SR:
-        type_str = "G_SR"; break;
-      case TLB::PTE_G_SRW:
-        type_str = "G_SRW"; break;
-      case TLB::PTE_G_SRX:
-        type_str = "G_SRX"; break;
-      case TLB::PTE_G_SRWX:
-        type_str = "G_SRWX"; break;
-      }
+      const char *type_str = dbg_ptype2str(TLB::tlbe_type(attr));
       std::cerr << std::setfill(' ') << std::setw(9) << type_str << "  ";
       // decode attr bits
       std::cerr << "  "
-                << (attr & TLB::SV32_PAGE_MP ? "M" : "m")
-                << (attr & TLB::SV32_PAGE_NC ? "C" : "c")
-                << (attr & TLB::SV32_PAGE_D ? "D" : "d")
-                << (attr & TLB::SV32_PAGE_R ? "R" : "r")
-                << (attr & TLB::SV32_PAGE_VALID ? "V" : "v");
+                << (attr & TLB::SV32_PAGE_MP ? "M" : " ")
+                << (attr & TLB::SV32_PAGE_NC ? "C" : " ")
+                << (attr & TLB::SV32_PAGE_D ? "D" : " ")
+                << (attr & TLB::SV32_PAGE_R ? "R" : " ")
+                << (attr & TLB::SV32_PAGE_VALID ? "V" : " ");
     }
     std::cerr << std::endl;
+  }
+
+  // print page table
+  unsigned levels, ptidxbits, ptesize;
+  switch (get_field(proc->get_state()->mstatus, MSTATUS_VM)) {
+  default: case VM_SV32: levels = 2; ptidxbits = 10; ptesize = 4; break;
+  case VM_SV39: levels = 3; ptidxbits = 9; ptesize = 8; break;
+  case VM_SV48: levels = 4; ptidxbits = 9; ptesize = 8; break;
+  }
+
+  reg_t base = proc->get_state()->sptbr;
+
+  for (unsigned i0 = 0; i0 < (1 << ptidxbits); ++i0) {
+    reg_t pte_addr = base + i0 * ptesize;
+    if (pte_addr >= memsz) {
+      std::cerr << std::hex << std::setfill('0') << std::setw(8) << pte_addr << " "
+                << std::setfill(' ') << std::setw(4) << std::dec << i0 << " "
+                << "*BAD PTE ADDR*" << std::endl;
+    } else {
+      reg_t pte = ptesize == 4 ? *(uint32_t*)(mem + pte_addr) : *(uint64_t*)(mem + pte_addr);
+      if (!(pte & PTE_V))
+        continue;
+      reg_t ppn = pte >> PTE_PPN_SHIFT;
+      std::cerr << std::hex << std::setfill('0') << std::setw(8) << pte_addr << " "
+                << std::setfill(' ') << std::setw(4) << std::dec << i0 << " ";
+      if (PTE_TABLE(pte)) { // next level of page table
+        reg_t ptd_addr = ppn << PGSHIFT;
+        std::cerr << "ptd: " << std::hex << std::setfill('0')
+                  << std::setw(8) << ptd_addr;
+        if (ptd_addr < 0 || (ptd_addr + 4096) >= memsz) {
+          std::cerr << " *BAD PTD ADDR*" << std::endl;
+          continue;
+        }
+        std::cerr << std::endl;
+        for (unsigned i1 = 0; i1 < (1 << ptidxbits); ++i1) {
+          reg_t pte_addr = ptd_addr + i1 * ptesize;
+          reg_t pte = ptesize == 4 ? *(uint32_t*)(mem + pte_addr) : *(uint64_t*)(mem + pte_addr);
+          if (!(pte & PTE_V))
+            continue;
+          reg_t ppn = pte >> PTE_PPN_SHIFT;
+          std::cerr << std::setfill('0') << std::setw(8) << pte_addr << " "
+                    << std::setfill(' ') << std::setw(4) << std::dec << i0 << ":"
+                    << std::setfill(' ') << std::setw(4) << i1 << " "
+                    << std::hex << std::setfill('0') << std::setw(8)
+                    << ((i0 << 22) + (i1 << 12)) << " ";
+          if (PTE_TABLE(pte)) { // next level of page table
+            std::cerr << "invalid ptd: " << std::hex << pte << std::endl;
+          } else {
+            std::cerr << "pte " << std::hex << std::setfill('0') << std::setw(8) << pte
+                      << " [" << dbg_ptype2str((pte >> 1) & 0xf) << "] "
+                      << std::setfill('0') << std::setw(8) << (ppn << 12) << std::endl;
+          }
+        }
+      } else {
+        std::cerr << std::dec << std::setfill(' ') << std::setw(4) << i0 << " "
+                  << std::hex << std::setfill('0') << std::setw(8) << (i0 << 22)
+                  << " pte: "
+                  << std::hex << std::setfill('0') << std::setw(8) << pte
+                  << " [" << dbg_ptype2str((pte >> 1) & 0xf) << "] "
+                  << std::setfill('0') << std::setw(8) << (ppn << 12) << std::endl;
+      }
+    }
   }
 }
 
@@ -373,7 +442,6 @@ static void refill_tlb_entry(TLB::tlb_entry *entry, unsigned idx, TLB::page_attr
 void mmu_t::tlbi_setup_entry(TLB::page_attr pattr)
 {
   unsigned tlbe_idx = TLB::tlbe_tag(tlbi_vaddr, TLB::tlbe_megapage(pattr)) & (TLB::I_SETS - 1);
-  // unsigned tlbe_idx = (tlbi_vaddr >> TLB::SV32_PAGESZ_BITS) & (TLB::I_SETS - 1);
 
 #if (DBG_TLB_LVL > 0)
   std::cerr << "I:";
@@ -386,10 +454,13 @@ void mmu_t::tlbi_setup_entry(TLB::page_attr pattr)
     refill_tlb_entry(entry, tlbe_idx, pattr, tlbi_vaddr);
     return;
   }
+  // do nothing more for TLB entry flushing case (V==0)
+  if (!TLB::tlbe_valid(pattr))
+      return;
   // search empty entry
   entry = tlbi + tlbe_idx;
   for (unsigned i = 0; i < TLB::I_WAYS; ++i, entry += TLB::I_SETS) {
-    if (!(entry->pattr & TLB::SV32_PAGE_VALID)) {
+    if (!TLB::tlbe_valid(entry->pattr)) {
       // fill empty entry
       refill_tlb_entry(entry, tlbe_idx, pattr, tlbi_vaddr);
       return;
@@ -408,7 +479,6 @@ void mmu_t::tlbi_setup_entry(TLB::page_attr pattr)
 void mmu_t::tlbd_setup_entry(TLB::page_attr pattr)
 {
   unsigned tlbe_idx = TLB::tlbe_tag(tlbd_vaddr, TLB::tlbe_megapage(pattr)) & (TLB::D_SETS - 1);
-  // unsigned tlbe_idx = (tlbd_vaddr >> TLB::SV32_PAGESZ_BITS) & (TLB::D_SETS - 1);
 
 #if (DBG_TLB_LVL > 0)
   std::cerr << "D:";
@@ -421,10 +491,13 @@ void mmu_t::tlbd_setup_entry(TLB::page_attr pattr)
     refill_tlb_entry(entry, tlbe_idx, pattr, tlbd_vaddr);
     return;
   }
+  // do nothing more for TLB entry flushing case (V==0)
+  if (!TLB::tlbe_valid(pattr))
+      return;
   // search empty entry
   entry = tlbd + tlbe_idx;
   for (unsigned i = 0; i < TLB::D_WAYS; ++i, entry += TLB::D_SETS) {
-    if (!(entry->pattr & TLB::SV32_PAGE_VALID)) {
+    if (!TLB::tlbe_valid(entry->pattr)) {
       // fill empty entry
       refill_tlb_entry(entry, tlbe_idx, pattr, tlbd_vaddr);
       return;
