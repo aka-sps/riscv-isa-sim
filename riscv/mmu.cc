@@ -317,7 +317,7 @@ void mmu_t::dbg_print_tlb(TLB::tlb_entry *tlb, unsigned tlb_sets, unsigned tlb_w
 
   reg_t base = proc->get_state()->sptbr;
 
-  for (unsigned i0 = 0; i0 < (1 << ptidxbits); ++i0) {
+  for (unsigned i0 = 0; i0 < (unsigned)(1 << ptidxbits); ++i0) {
     reg_t pte_addr = base + i0 * ptesize;
     if (pte_addr >= memsz) {
       std::cerr << std::hex << std::setfill('0') << std::setw(8) << pte_addr << " "
@@ -339,7 +339,7 @@ void mmu_t::dbg_print_tlb(TLB::tlb_entry *tlb, unsigned tlb_sets, unsigned tlb_w
           continue;
         }
         std::cerr << std::endl;
-        for (unsigned i1 = 0; i1 < (1 << ptidxbits); ++i1) {
+        for (unsigned i1 = 0; i1 < (unsigned)(1 << ptidxbits); ++i1) {
           reg_t pte_addr = ptd_addr + i1 * ptesize;
           reg_t pte = ptesize == 4 ? *(uint32_t*)(mem + pte_addr) : *(uint64_t*)(mem + pte_addr);
           if (!(pte & PTE_V))
@@ -361,7 +361,7 @@ void mmu_t::dbg_print_tlb(TLB::tlb_entry *tlb, unsigned tlb_sets, unsigned tlb_w
       } else {
         std::cerr << std::dec << std::setfill(' ') << std::setw(4) << i0 << " "
                   << std::hex << std::setfill('0') << std::setw(8) << (i0 << 22)
-                  << " pte: "
+                  << " pte "
                   << std::hex << std::setfill('0') << std::setw(8) << pte
                   << " [" << dbg_ptype2str((pte >> 1) & 0xf) << "] "
                   << std::setfill('0') << std::setw(8) << (ppn << 12) << std::endl;
@@ -420,6 +420,14 @@ reg_t mmu_t::walk(reg_t addr, bool supervisor, access_type type)
   else
     dbg_print_tlbd();
 #endif // DBG_TLB_LVL
+
+  if (!entry || !perm) {
+    // store badaddr for 'access fault' handling
+    if (type == FETCH)
+      tlbi_vaddr = addr;
+    else
+      tlbd_vaddr = addr;
+  }
 
   return static_cast<reg_t>(phyaddr);
 }
