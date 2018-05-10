@@ -55,9 +55,9 @@ enable_stow  := @enable_stow@
 
 ifeq ($(enable_stow),yes)
   stow_pkg_dir := $(prefix)/pkgs
-  INSTALLDIR ?= $(DESTDIR)/$(stow_pkg_dir)/$(project_name)-$(project_ver)
+  INSTALLDIR ?= $(DESTDIR)$(stow_pkg_dir)/$(project_name)-$(project_ver)
 else
-  INSTALLDIR ?= $(DESTDIR)/$(prefix)
+  INSTALLDIR ?= $(DESTDIR)$(prefix)
 endif
 
 install_hdrs_dir := $(INSTALLDIR)/include/$(project_name)
@@ -71,7 +71,7 @@ install_exes_dir := $(INSTALLDIR)/bin
 sprojs         := @subprojects@
 sprojs_enabled := @subprojects_enabled@
 
-sprojs_include := -I. $(addprefix -I$(src_dir)/, $(sprojs_enabled))
+sprojs_include := -I. -I$(src_dir) $(addprefix -I$(src_dir)/, $(sprojs_enabled))
 VPATH := $(addprefix $(src_dir)/, $(sprojs_enabled))
 
 #-------------------------------------------------------------------------
@@ -119,6 +119,9 @@ INSTALL_HDR   := $(INSTALL) -m 444
 INSTALL_LIB   := $(INSTALL) -m 644
 INSTALL_EXE   := $(INSTALL) -m 555
 STOW          := @stow@
+
+# Tests
+bintests = $(src_dir)/tests/ebreak.py
 
 #-------------------------------------------------------------------------
 # Include subproject makefile fragments
@@ -184,16 +187,14 @@ _$(1).cc :
 
 # Build the object files for this subproject
 
-$(2)_pch := $$(patsubst %.hxx, %.hxx.gch, $$(patsubst %.h, %.h.gch, $$($(2)_precompiled_hdrs)))
+$(2)_pch := $$(patsubst %.h, %.h.gch, $$($(2)_precompiled_hdrs))
 $(2)_objs := $$(patsubst %.cc, %.o, $$($(2)_srcs))
 $(2)_c_objs := $$(patsubst %.c, %.o, $$($(2)_c_srcs))
 $(2)_deps := $$(patsubst %.o, %.d, $$($(2)_objs))
 $(2)_deps += $$(patsubst %.o, %.d, $$($(2)_c_objs))
-$(2)_deps += $$(patsubst %.h, %.h.d, $$(filter %.h,$$($(2)_precompiled_hdrs))) $$(patsubst %.hxx, %.hxx.d, $$(filter %.hxx,$$($(2)_precompiled_hdrs)))
-$$(filter %.h.gch,$$($(2)_pch)) : %.h.gch : %.h
-	$(COMPILE) $$< -o $$@
-$$(filter %.hxx.gch,$$($(2)_pch)) : %.hxx.gch : %.hxx
-	$(COMPILE) $$< -o $$@
+$(2)_deps += $$(patsubst %.h, %.h.d, $$($(2)_precompiled_hdrs))
+$$($(2)_pch) : %.h.gch : %.h
+	$(COMPILE) -x c++-header $$< -o $$@
 # If using clang, don't depend (and thus don't build) precompiled headers
 $$($(2)_objs) : %.o : %.cc $$($(2)_gen_hdrs) $(if $(filter-out clang,$(CC)),$$($(2)_pch))
 	$(COMPILE) -c $$<
@@ -331,8 +332,20 @@ deps : $(deps)
 # Check
 #-------------------------------------------------------------------------
 
-check : $(test_outs)
-	echo; grep -h -e'Unit Tests' -e'FAILED' -e'Segementation' $^; echo
+bintest_outs = $(bintests:=.out)
+junk += $(bintest_outs)
+%.out: % all
+	./$* < /dev/null 2>&1 | tee $@
+
+check-cpp : $(test_outs)
+	@echo
+	! grep -h -e'Unit Tests' -e'FAILED' -e'Segmentation' $^ < /dev/null
+	@echo
+
+check-bin : $(bintest_outs)
+	! tail -n 1 $^ < /dev/null 2>&1 | grep FAILED
+
+check : check-cpp check-bin
 
 .PHONY : check
 

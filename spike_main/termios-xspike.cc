@@ -5,10 +5,10 @@
 
 #include <unistd.h>
 #include <termios.h>
-#include <csignal>
-#include <cassert>
-#include <cstdlib>
-#include <cstdio>
+#include <signal.h>
+#include <assert.h>
+#include <stdlib.h>
+#include <stdio.h>
 
 int main()
 {

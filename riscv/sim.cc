@@ -1,52 +1,62 @@
 // See LICENSE for license details.
-#include "sim.hxx"
 
-#include "htif.hxx"
-#include "devicetree.hxx"
-
+#include "sim.h"
+#include "mmu.h"
+#include "ini_file.h"
+#include "remote_bitbang.h"
 #include <map>
 #include <iostream>
+#include <sstream>
 #include <climits>
 #include <cstdlib>
 #include <cassert>
-#include <csignal>
-#include <new>
+#include <signal.h>
+#include <unistd.h>
+#include <sys/wait.h>
+#include <sys/types.h>
 
-namespace riscv_isa_sim {
 volatile bool ctrlc_pressed = false;
 static void handle_signal(int sig)
 {
   if (ctrlc_pressed)
-    exit(-1);  ///< \bug Using of exit() in c++ prevents normal sequence of object destruction
+    exit(-1);
   ctrlc_pressed = true;
   signal(sig, &handle_signal);
 }
 
-sim_t::sim_t(const char* isa, size_t nprocs, size_t mem_mb,
-             const std::vector<std::string>& args)
-  : htif(new htif_isasim_t(this, args)), procs(std::max(nprocs, size_t(1))),
-    rtc(0), current_step(0), current_proc(0), debug(false)
+sim_t::sim_t(const char* isa, size_t nprocs, bool halted, reg_t start_pc,
+             std::vector<std::pair<reg_t, mem_t*>> mems,
+             const std::vector<std::string>& args, std::vector<int> const hartids)
+  : htif_t(args), debug_module(this), mems(mems), procs(std::max(nprocs, size_t(1))),
+    start_pc(start_pc),
+    current_step(0), current_proc(0), debug(false), remote_bitbang(NULL)
 {
   signal(SIGINT, &handle_signal);
-  // allocate target machine's memory, shrinking it as necessary
-  // until the allocation succeeds
-  size_t const memsz0 = mem_mb ? static_cast<size_t>(mem_mb) << 20 : 1LU << (sizeof(size_t) == 8 ? 32 : 30);
-  static size_t const quantum = 1UL << 20;
 
-  this->memsz = memsz0;
-  while (!(this->mem = new(std::nothrow) char[memsz]))
-    this->memsz = this->memsz * 10 / 11 / quantum * quantum;
+  for (auto& x : mems)
+    bus.add_device(x.first, x.second);
 
-  if (this->memsz != memsz0)
-    fprintf(stderr, "warning: only got %lu bytes of target mem (wanted %lu)\n",
-            static_cast<unsigned long>(memsz), static_cast<unsigned long>(memsz0));
+  debug_module.add_device(&bus);
 
-  this->debug_mmu = new mmu_t(mem, memsz);
+  debug_mmu = new mmu_t(this, NULL);
 
-  for (size_t i = 0; i < procs.size(); ++i)
-    procs[i] = new processor_t(isa, this, i);
+  if (hartids.size() == 0) {
+    for (size_t i = 0; i < procs.size(); i++) {
+      procs[i] = new processor_t(isa, this, i, halted);
+    }
+  }
+  else {
+    if (hartids.size() != procs.size()) {
+      std::cerr << "Number of specified hartids doesn't match number of processors" << strerror(errno) << std::endl;
+      exit(1);
+    }
+    for (size_t i = 0; i < procs.size(); i++) {
+      procs[i] = new processor_t(isa, this, hartids[i], halted);
+    }
+  }
 
-  make_device_tree();
+  clint.reset(new clint_t(procs));
+  bus.add_device(CLINT_BASE, clint.get());
 }
 
 sim_t::~sim_t()
@@ -54,37 +64,84 @@ sim_t::~sim_t()
   for (size_t i = 0; i < procs.size(); i++)
     delete procs[i];
   delete debug_mmu;
-  delete mem;
 }
 
-reg_t sim_t::get_scr(int which)
+void sim_thread_main(void* arg)
 {
-  switch (which)
+  ((sim_t*)arg)->main();
+}
+
+void sim_t::main()
+{
+  if (!debug && log)
+    set_procs_debug(true);
+
+  while (!done())
   {
-    case 0: return procs.size();
-    case 1: return memsz >> 20;
-    default: return -1;
+    if (debug || ctrlc_pressed)
+      interactive();
+    else {
+      step(1); //step(INTERLEAVE);
+    }
+    if (remote_bitbang) {
+      remote_bitbang->tick();
+    }
   }
 }
 
 int sim_t::run()
 {
-  if (!debug && log)
-    set_procs_debug(true);
-  while (htif->tick())
-  {
-    if (debug || ctrlc_pressed)
-      interactive();
-    else
-      step(INTERLEAVE);
-  }
-  return htif->exit_code();
+  host = context_t::current();
+  target.init(sim_thread_main, this);
+  return htif_t::run();
 }
 
 void sim_t::step(size_t n)
 {
   for (size_t i = 0, steps = 0; i < n; i += steps)
   {
+    processor_t *p = get_core("0");
+    if ((p->state.pc & 0x0FFFFFFFFULL) == get_sc_exit_addr()) {
+      mmu_t* mmu; // = debug_mmu;
+      reg_t xreg_addr = get_xreg_output_data();
+      reg_t freg_addr = get_freg_output_data();
+      reg_t val;
+      FILE *pf = NULL;
+
+      fprintf(stderr, "xreg_addr: %p\n", xreg_addr);
+      if (xreg_addr & 0x80000000ULL) {
+        xreg_addr |= ~0x0FFFFFFFFULL;
+      }
+
+      fprintf(stderr, "freg_addr: %p\n", freg_addr);
+      if (freg_addr & 0x80000000ULL) {
+        freg_addr |= ~0x0FFFFFFFFULL;
+      }
+
+      pf = fopen("regs_ref.c", "wt+");
+      if (pf == NULL) {
+        printf("Error! Can't create file 'regs_ref.c'!\n");
+      } else {
+        mmu = p->get_mmu();
+        fprintf(pf, "xreg_ref_data:\n");
+        for (int i = 0; i < 32; i++) {
+          val = mmu->load_uint64(xreg_addr);
+          fprintf(pf, "reg_x%d_ref: .dword 0x%016" PRIx64 "\n", i, val);
+          xreg_addr += 8;
+        }
+
+        fprintf(pf, "\nfreg_ref_data:\n");
+        for (int i = 0; i < 32; i++) {
+          val = mmu->load_uint64(freg_addr);
+          fprintf(pf, "reg_f%d_ref: .dword 0x%016" PRIx64 "\n", i, val);
+          freg_addr += 8;
+        }
+        fclose(pf);
+      }
+      stop();
+      exit(0);
+    }
+
     steps = std::min(n - i, INTERLEAVE - current_step);
     procs[current_proc]->step(steps);
 
@@ -95,27 +152,12 @@ void sim_t::step(size_t n)
       procs[current_proc]->yield_load_reservation();
       if (++current_proc == procs.size()) {
         current_proc = 0;
-        rtc += INTERLEAVE / INSNS_PER_RTC_TICK;
+        clint->increment(INTERLEAVE / INSNS_PER_RTC_TICK);
       }
 
-      htif->tick();
+      host->switch_to();
     }
   }
-}
-
-bool sim_t::running()
-{
-  for (size_t i = 0; i < procs.size(); i++)
-    if (procs[i]->running())
-      return true;
-  return false;
-}
-
-void sim_t::stop()
-{
-  procs[0]->state.tohost = 1;
-  while (htif->tick())
-    ;
 }
 
 void sim_t::set_debug(bool value)
@@ -126,6 +168,20 @@ void sim_t::set_debug(bool value)
 void sim_t::set_log(bool value)
 {
   log = value;
+}
+
+int sim_t::set_config_ini(char *config_name)
+{
+  std::string param_str(config_name);
+  ini_params.Ini_file_load_by_fname(param_str);
+  return 0;
+}
+
+char * sim_t::get_config_ini_str(char *sec_name, char *prm_name)
+{
+  std::string sec_str(sec_name);
+  std::string prm_str(prm_name);
+  return ini_params.get_param(sec_str, prm_str);
 }
 
 void sim_t::set_histogram(bool value)
@@ -156,41 +212,225 @@ bool sim_t::mmio_store(reg_t addr, size_t len, const uint8_t* bytes)
   return bus.store(addr, len, bytes);
 }
 
-void sim_t::make_device_tree()
+static inline bool check_file_exist(char *name)
 {
-  char buf[32];
-  size_t max_devtree_size = procs.size() * 4096; // sloppy upper bound
-  size_t cpu_size = NCSR * procs[0]->max_xlen / 8;
-  reg_t cpu_addr = memsz + max_devtree_size;
-
-  device_tree dt;
-  dt.begin_node("");
-  dt.add_prop("#address-cells", 2);
-  dt.add_prop("#size-cells", 2);
-  dt.add_prop("model", "Spike");
-    dt.begin_node("memory@0");
-      dt.add_prop("device_type", "memory");
-      dt.add_reg({0, memsz});
-    dt.end_node();
-    dt.begin_node("cpus");
-      dt.add_prop("#address-cells", 2);
-      dt.add_prop("#size-cells", 2);
-      for (size_t i = 0; i < procs.size(); i++) {
-        sprintf(buf, "cpu@%" PRIx64, cpu_addr);
-        dt.begin_node(buf);
-          dt.add_prop("device_type", "cpu");
-          dt.add_prop("compatible", "riscv");
-          dt.add_prop("isa", procs[i]->isa);
-          dt.add_reg({cpu_addr});
-        dt.end_node();
-
-        bus.add_device(cpu_addr, procs[i]);
-        cpu_addr += cpu_size;
-      }
-    dt.end_node();
-  dt.end_node();
-
-  devicetree.reset(new rom_device_t(dt.finalize()));
-  bus.add_device(memsz, devicetree.get());
+  return (access(name, F_OK ) != -1);
 }
-}  // namespace riscv_isa_sim
+
+static char *dtc_path;
+
+static std::string dts_compile(const std::string& dts)
+{
+  // Convert the DTS to DTB
+  int dts_pipe[2];
+  pid_t dts_pid;
+
+  if (pipe(dts_pipe) != 0 || (dts_pid = fork()) < 0) {
+    std::cerr << "Failed to fork dts child: " << strerror(errno) << std::endl;
+    exit(1);
+  }
+
+  // Child process to output dts
+  if (dts_pid == 0) {
+    close(dts_pipe[0]);
+    int step, len = dts.length();
+    const char *buf = dts.c_str();
+    for (int done = 0; done < len; done += step) {
+      step = write(dts_pipe[1], buf+done, len-done);
+      if (step == -1) {
+        std::cerr << "Failed to write dts: " << strerror(errno) << std::endl;
+        exit(1);
+      }
+    }
+    close(dts_pipe[1]);
+    exit(0);
+  }
+
+  pid_t dtb_pid;
+  int dtb_pipe[2];
+  if (pipe(dtb_pipe) != 0 || (dtb_pid = fork()) < 0) {
+    std::cerr << "Failed to fork dtb child: " << strerror(errno) << std::endl;
+    exit(1);
+  }
+
+  // Child process to output dtb
+  if (dtb_pid == 0) {
+    dup2(dts_pipe[0], 0);
+    dup2(dtb_pipe[1], 1);
+    close(dts_pipe[0]);
+    close(dts_pipe[1]);
+    close(dtb_pipe[0]);
+    close(dtb_pipe[1]);
+    if (check_file_exist(DTC)) {
+      execl(DTC, DTC, "-O", "dtb", 0);
+    } else {
+      if (dtc_path != NULL) {
+        execl(dtc_path, dtc_path, "-O", "dtb", 0);
+      }
+    }
+
+    std::cerr << "Failed to run " DTC ": " << strerror(errno) << std::endl;
+    exit(1);
+  }
+
+  close(dts_pipe[1]);
+  close(dts_pipe[0]);
+  close(dtb_pipe[1]);
+
+  // Read-out dtb
+  std::stringstream dtb;
+
+  int got;
+  char buf[4096];
+  while ((got = read(dtb_pipe[0], buf, sizeof(buf))) > 0) {
+    dtb.write(buf, got);
+  }
+  if (got == -1) {
+    std::cerr << "Failed to read dtb: " << strerror(errno) << std::endl;
+    exit(1);
+  }
+  close(dtb_pipe[0]);
+
+  // Reap children
+  int status;
+  waitpid(dts_pid, &status, 0);
+  if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+    std::cerr << "Child dts process failed" << std::endl;
+    exit(1);
+  }
+  waitpid(dtb_pid, &status, 0);
+  if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+    std::cerr << "Child dtb process failed" << std::endl;
+    exit(1);
+  }
+
+  return dtb.str();
+}
+
+void sim_t::make_dtb()
+{
+  const int reset_vec_size = 8;
+
+  start_pc = start_pc == reg_t(-1) ? get_entry_point() : start_pc;
+
+  uint32_t reset_vec[reset_vec_size] = {
+    0x297,                                      // auipc  t0,0x0
+    0x28593 + (reset_vec_size * 4 << 20),       // addi   a1, t0, &dtb
+    0xf1402573,                                 // csrr   a0, mhartid
+    get_core(0)->xlen == 32 ?
+      0x0182a283u :                             // lw     t0,24(t0)
+      0x0182b283u,                              // ld     t0,24(t0)
+    0x28067,                                    // jr     t0
+    0,
+    (uint32_t) (start_pc & 0xffffffff),
+    (uint32_t) (start_pc >> 32)
+  };
+
+  std::vector<char> rom((char*)reset_vec, (char*)reset_vec + sizeof(reset_vec));
+
+  std::stringstream s;
+  s << std::dec <<
+         "/dts-v1/;\n"
+         "\n"
+         "/ {\n"
+         "  #address-cells = <2>;\n"
+         "  #size-cells = <2>;\n"
+         "  compatible = \"ucbbar,spike-bare-dev\";\n"
+         "  model = \"ucbbar,spike-bare\";\n"
+         "  cpus {\n"
+         "    #address-cells = <1>;\n"
+         "    #size-cells = <0>;\n"
+         "    timebase-frequency = <" << (CPU_HZ/INSNS_PER_RTC_TICK) << ">;\n";
+  for (size_t i = 0; i < procs.size(); i++) {
+    s << "    CPU" << i << ": cpu@" << i << " {\n"
+         "      device_type = \"cpu\";\n"
+         "      reg = <" << i << ">;\n"
+         "      status = \"okay\";\n"
+         "      compatible = \"riscv\";\n"
+         "      riscv,isa = \"" << procs[i]->isa_string << "\";\n"
+         "      mmu-type = \"riscv," << (procs[i]->max_xlen <= 32 ? "sv32" : "sv48") << "\";\n"
+         "      clock-frequency = <" << CPU_HZ << ">;\n"
+         "      CPU" << i << "_intc: interrupt-controller {\n"
+         "        #interrupt-cells = <1>;\n"
+         "        interrupt-controller;\n"
+         "        compatible = \"riscv,cpu-intc\";\n"
+         "      };\n"
+         "    };\n";
+  }
+  s <<   "  };\n";
+  for (auto& m : mems) {
+    s << std::hex <<
+         "  memory@" << m.first << " {\n"
+         "    device_type = \"memory\";\n"
+         "    reg = <0x" << (m.first >> 32) << " 0x" << (m.first & (uint32_t)-1) <<
+                   " 0x" << (m.second->size() >> 32) << " 0x" << (m.second->size() & (uint32_t)-1) << ">;\n"
+         "  };\n";
+  }
+  s <<   "  soc {\n"
+         "    #address-cells = <2>;\n"
+         "    #size-cells = <2>;\n"
+         "    compatible = \"ucbbar,spike-bare-soc\", \"simple-bus\";\n"
+         "    ranges;\n"
+         "    clint@" << CLINT_BASE << " {\n"
+         "      compatible = \"riscv,clint0\";\n"
+         "      interrupts-extended = <" << std::dec;
+  for (size_t i = 0; i < procs.size(); i++)
+    s << "&CPU" << i << "_intc 3 &CPU" << i << "_intc 7 ";
+  reg_t clintbs = CLINT_BASE;
+  reg_t clintsz = CLINT_SIZE;
+  s << std::hex << ">;\n"
+         "      reg = <0x" << (clintbs >> 32) << " 0x" << (clintbs & (uint32_t)-1) <<
+                     " 0x" << (clintsz >> 32) << " 0x" << (clintsz & (uint32_t)-1) << ">;\n"
+         "    };\n"
+         "  };\n"
+         "  htif {\n"
+         "    compatible = \"ucb,htif0\";\n"
+         "  };\n"
+         "};\n";
+
+  dts = s.str();
+  dtc_path = get_config_ini_str("common", "dtc_path");
+  std::string dtb = dts_compile(dts);
+
+  rom.insert(rom.end(), dtb.begin(), dtb.end());
+  const int align = 0x1000;
+  rom.resize((rom.size() + align - 1) / align * align);
+
+  boot_rom.reset(new rom_device_t(rom));
+  bus.add_device(DEFAULT_RSTVEC, boot_rom.get());
+}
+
+char* sim_t::addr_to_mem(reg_t addr) {
+  auto desc = bus.find_device(addr);
+  if (auto mem = dynamic_cast<mem_t*>(desc.second))
+    if (addr - desc.first < mem->size())
+      return mem->contents() + (addr - desc.first);
+  return NULL;
+}
+
+// htif
+
+void sim_t::reset()
+{
+  make_dtb();
+}
+
+void sim_t::idle()
+{
+  target.switch_to();
+}
+
+void sim_t::read_chunk(addr_t taddr, size_t len, void* dst)
+{
+  assert(len == 8);
+  auto data = debug_mmu->load_uint64(taddr);
+  memcpy(dst, &data, sizeof data);
+}
+
+void sim_t::write_chunk(addr_t taddr, size_t len, const void* src)
+{
+  assert(len == 8);
+  uint64_t data;
+  memcpy(&data, src, sizeof data);
+  debug_mmu->store_uint64(taddr, data);
+}

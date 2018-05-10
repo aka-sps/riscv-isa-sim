@@ -6,32 +6,28 @@
 // enclosed hexadecimal number, interpreted as a RISC-V
 // instruction.
 
-#include "extension.hxx"
-#include "../../riscv-fesvr/fesvr/option_parser.hxx"
-#include "../riscv/disasm.hxx"
-
+#include "disasm.h"
+#include "extension.h"
 #include <iostream>
 #include <string>
 #include <cstdint>
-
+#include <fesvr/option_parser.h>
 using namespace std;
 
 int main(int argc, char** argv)
 {
-  using namespace riscv_isa_sim;
   string s;
-  disassembler_t d;
+  const char* isa = DEFAULT_ISA;
 
   std::function<extension_t*()> extension;
-  using namespace riscv_fesvr;
   option_parser_t parser;
   parser.option(0, "extension", 1, [&](const char* s){extension = find_extension(s);});
+  parser.option(0, "isa", 1, [&](const char* s){isa = s;});
   parser.parse(argv);
 
-  if (extension) {
-    for (auto disasm_insn : extension()->get_disasms())
-      d.add_insn(disasm_insn);
-  }
+  processor_t p(isa, 0, 0);
+  if (extension)
+    p.register_extension(extension());
 
   while (getline(cin, s))
   {
@@ -48,7 +44,7 @@ int main(int argc, char** argv)
       if (nbits < 64)
         bits = bits << (64 - nbits) >> (64 - nbits);
 
-      string dis = d.disassemble(bits);
+      string dis = p.get_disassembler()->disassemble(bits);
       s = s.substr(0, start) + dis + s.substr(end+1);
       start += dis.length();
     }

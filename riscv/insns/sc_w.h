@@ -1,7 +1,7 @@
 require_extension('A');
-if (RS1 == p->get_state().load_reservation)
+if (RS1 == p->get_state()->load_reservation)
 {
-  MMU.store<uint32_t>(RS1, RS2);
+  MMU.store_uint32(RS1, RS2);
   WRITE_RD(0);
 }
 else
