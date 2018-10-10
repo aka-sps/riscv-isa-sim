@@ -201,6 +201,32 @@ reg_t sim_t::get_reg(const std::vector<std::string>& args)
   return p->get_state()->XPR[r];
 }
 
+reg_t sim_t::get_reg2(char *reg_name)
+{
+  if(reg_name == NULL)
+    throw trap_interactive();
+
+  processor_t *p = get_core(0);
+
+  unsigned long r = std::find(xpr_name, xpr_name + NXPR, reg_name) - xpr_name;
+  if (r == NXPR) {
+    char *ptr;
+    r = strtoul(reg_name, &ptr, 10);
+    if (*ptr) {
+      #define DECLARE_CSR(name, number) if (reg_name == #name) return p->get_csr(number);
+      #include "encoding.h"              // generates if's for all csrs
+      r = NXPR;                          // else case (csr name not found)
+      #undef DECLARE_CSR
+    }
+  }
+
+  if (r >= NXPR)
+    throw trap_interactive();
+
+  return p->get_state()->XPR[r];
+}
+
+
 freg_t sim_t::get_freg(const std::vector<std::string>& args)
 {
   if(args.size() != 2)

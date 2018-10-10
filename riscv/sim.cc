@@ -83,8 +83,9 @@ void sim_t::main()
   {
     if (debug || ctrlc_pressed)
       interactive();
-    else
-      step(INTERLEAVE);
+    else {
+      step(1); //step(INTERLEAVE);
+    }
     if (remote_bitbang) {
       remote_bitbang->tick();
     }
@@ -102,6 +103,62 @@ void sim_t::step(size_t n)
 {
   for (size_t i = 0, steps = 0; i < n; i += steps)
   {
+    processor_t *p = get_core("0");
+    if ((p->get_state()->pc & 0x0FFFFFFFFULL) == get_sc_exit_addr()) {
+      mmu_t* mmu; // = debug_mmu;
+      reg_t xreg_addr = get_xreg_output_data();
+      reg_t freg_addr = get_freg_output_data();
+      reg_t val;
+
+      fprintf(stderr, "ipc: 0x%016" PRIx64 "\n", p->get_state()->pc);
+
+      val = get_reg2((char*)"a0");
+      fprintf(stderr, "X10: 0x%016" PRIx64 "\n", val);
+
+      val = get_reg2((char*)"a1");
+      fprintf(stderr, "X11: 0x%016" PRIx64 "\n", val);
+
+      val = get_reg2((char*)"a2");
+      fprintf(stderr, "X12: 0x%016" PRIx64 "\n", val);
+      
+
+      if (xreg_addr && freg_addr) {
+        FILE *pf = NULL;
+        fprintf(stderr, "xreg_addr: %p\n", xreg_addr);
+        if (xreg_addr & 0x80000000ULL) {
+          xreg_addr |= ~0x0FFFFFFFFULL;
+        }
+
+        fprintf(stderr, "freg_addr: %p\n", freg_addr);
+        if (freg_addr & 0x80000000ULL) {
+          freg_addr |= ~0x0FFFFFFFFULL;
+        }
+
+        pf = fopen("regs_ref.c", "wt+");
+        if (pf == NULL) {
+          printf("Error! Can't create file 'regs_ref.c'!\n");
+        } else {
+          mmu = p->get_mmu();
+          fprintf(pf, "xreg_ref_data:\n");
+          for (int i = 0; i < 32; i++) {
+            val = mmu->load_uint64(xreg_addr);
+            fprintf(pf, "reg_x%d_ref: .dword 0x%016" PRIx64 "\n", i, val);
+            xreg_addr += 8;
+          }
+
+          fprintf(pf, "\nfreg_ref_data:\n");
+          for (int i = 0; i < 32; i++) {
+            val = mmu->load_uint64(freg_addr);
+            fprintf(pf, "reg_f%d_ref: .dword 0x%016" PRIx64 "\n", i, val);
+            freg_addr += 8;
+          }
+          fclose(pf);
+        }
+      }
+      stop();
+      exit(0);
+    }
+
     steps = std::min(n - i, INTERLEAVE - current_step);
     procs[current_proc]->step(steps);
 

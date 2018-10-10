@@ -19,16 +19,16 @@ static void commit_log_print_value(int width, uint64_t hi, uint64_t lo)
 {
   switch (width) {
     case 16:
-      fprintf(stderr, "0x%04" PRIx16, (uint16_t)lo);
+      fprintf(stderr, "%04" PRIx16, (uint16_t)lo);
       break;
     case 32:
-      fprintf(stderr, "0x%08" PRIx32, (uint32_t)lo);
+      fprintf(stderr, "%08" PRIx32, (uint32_t)lo);
       break;
     case 64:
-      fprintf(stderr, "0x%016" PRIx64, lo);
+      fprintf(stderr, "%016" PRIx64, lo);
       break;
     case 128:
-      fprintf(stderr, "0x%016" PRIx64 "%016" PRIx64, hi, lo);
+      fprintf(stderr, "%016" PRIx64 "%016" PRIx64, hi, lo);
       break;
     default:
       abort();
@@ -42,21 +42,75 @@ static void commit_log_print_insn(state_t* state, reg_t pc, insn_t insn)
   int priv = state->last_inst_priv;
   int xlen = state->last_inst_xlen;
   int flen = state->last_inst_flen;
+  const char *xreg_aliases[32] {
+    "zero",   // x0
+    "ra",     // x1
+    "sp",     // x2
+    "gp",     // x3
+    "tp",     // x4
+    "t0",     // x5
+    "t1",     // x6
+    "t2",     // x7
+    "s0",     // x8
+    "s1",     // x9
+    "a0",     // x10
+    "a1",     // x11
+    "a2",     // x12
+    "a3",     // x13
+    "a4",     // x14
+    "a5",     // x15
+    "a6",     // x16
+    "a7",     // x17
+    "s2",     // x18
+    "s3",     // x19
+    "s4",     // x20
+    "s5",     // x21
+    "s6",     // x22
+    "s7",     // x23
+    "s8",     // x24
+    "s9",     // x25
+    "s10",    // x26
+    "s11",    // x27
+    "t3",     // x28
+    "t4",     // x29
+    "t5",     // x30
+    "t6",     // x31
+  };
+  //char freg_aliases[32];
 
-  fprintf(stderr, "%1d ", priv);
+
+  //fprintf(stderr, "%1d ", priv);
   commit_log_print_value(xlen, 0, pc);
-  fprintf(stderr, " (");
-  commit_log_print_value(insn.length() * 8, 0, insn.bits());
+  //fprintf(stderr, " (");
+  //commit_log_print_value(insn.length() * 8, 0, insn.bits());
 
   if (reg.addr) {
     bool fp = reg.addr & 1;
     int rd = reg.addr >> 1;
     int size = fp ? flen : xlen;
-    fprintf(stderr, ") %c%2d ", fp ? 'f' : 'x', rd);
+
+    //fprintf(stderr, ") %c%2d ", fp ? 'f' : 'x', rd);
+#if 0
+    //fprintf(stderr, ":\t%c%d\t", fp ? 'f' : 'x', rd);
+#else
+    if (fp) {
+        fprintf(stderr, ":\t%c%d\t", 'f', rd);
+    } else {
+        const char *reg_name;
+        if (rd < 32) {
+          reg_name = xreg_aliases[rd];
+        } else {
+          reg_name = "unknown_reg";
+        }
+        fprintf(stderr, ":\t%s\t", reg_name);
+    }
+    
+#endif
     commit_log_print_value(size, reg.data.v[1], reg.data.v[0]);
     fprintf(stderr, "\n");
   } else {
-    fprintf(stderr, ")\n");
+    //fprintf(stderr, ")\n");
+    fprintf(stderr, ":\n");
   }
   reg.addr = 0;
 #endif
