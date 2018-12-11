@@ -35,6 +35,7 @@ static void help()
   fprintf(stderr, "  --log-cache-miss      Generate a log of cache miss\n");
   fprintf(stderr, "  --extension=<name>    Specify RoCC Extension\n");
   fprintf(stderr, "  --extlib=<name>       Shared library to load\n");
+  fprintf(stderr, "  --config-ini=<name>   Configuration ini-file\n");
   fprintf(stderr, "  --rbb-port=<port>     Listen on <port> for remote bitbang connection\n");
   fprintf(stderr, "  --dump-dts            Print device tree string and exit\n");
   fprintf(stderr, "  --disable-dtb         Don't write the device tree blob into memory\n");
@@ -84,6 +85,7 @@ int main(int argc, char** argv)
   bool log = false;
   bool dump_dts = false;
   bool dtb_enabled = true;
+  std::string conf_ini_file;
   size_t nprocs = 1;
   reg_t start_pc = reg_t(-1);
   std::vector<std::pair<reg_t, mem_t*>> mems;
@@ -145,6 +147,9 @@ int main(int argc, char** argv)
       [&](const char* s){max_bus_master_bits = atoi(s);});
   parser.option(0, "debug-auth", 0,
       [&](const char* s){require_authentication = true;});
+  parser.option(0, "config-ini", 1, [&](const char *s){
+    conf_ini_file = s;
+  });
 
   auto argv1 = parser.parse(argv);
   std::vector<std::string> htif_args(argv1, (const char*const*)argv + argc);
@@ -156,6 +161,16 @@ int main(int argc, char** argv)
 
   sim_t s(isa, nprocs, halted, start_pc, mems, htif_args, std::move(hartids),
       progsize, max_bus_master_bits, require_authentication);
+
+  if (conf_ini_file.data()) {
+    fprintf(stderr, "conf_ini_file=%s\n", conf_ini_file.data());
+    s.set_config_ini((char*)conf_ini_file.data());
+    char *s_val = s.get_config_ini_str("common", "dtc_path");
+    if (s_val) {
+      fprintf(stderr, "dtc_path=%s\n", s_val);
+    }
+  }
+
   std::unique_ptr<remote_bitbang_t> remote_bitbang((remote_bitbang_t *) NULL);
   std::unique_ptr<jtag_dtm_t> jtag_dtm(new jtag_dtm_t(&s.debug_module));
   if (use_rbb) {

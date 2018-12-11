@@ -12,6 +12,7 @@
 #include <vector>
 #include <string>
 #include <memory>
+#include "ini_file.h"
 
 class mmu_t;
 class remote_bitbang_t;
@@ -30,6 +31,8 @@ public:
   int run();
   void set_debug(bool value);
   void set_log(bool value);
+  int set_config_ini(char *config_name);
+  char *get_config_ini_str(char *sec_name, char *prm_name);
   void set_histogram(bool value);
   void set_procs_debug(bool value);
   void set_dtb_enabled(bool value) {
@@ -46,6 +49,7 @@ public:
   void proc_reset(unsigned id);
 
 private:
+  Ini_file ini_params;
   std::vector<std::pair<reg_t, mem_t*>> mems;
   mmu_t* debug_mmu;  // debug port into main memory
   std::vector<processor_t*> procs;

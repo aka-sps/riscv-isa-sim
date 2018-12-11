@@ -2,6 +2,7 @@
 
 #include "sim.h"
 #include "mmu.h"
+#include "ini_file.h"
 #include "dts.h"
 #include "remote_bitbang.h"
 #include <map>
@@ -187,6 +188,20 @@ void sim_t::set_log(bool value)
   log = value;
 }
 
+int sim_t::set_config_ini(char *config_name)
+{
+  std::string param_str(config_name);
+  ini_params.Ini_file_load_by_fname(param_str);
+  return 0;
+}
+
+char * sim_t::get_config_ini_str(char *sec_name, char *prm_name)
+{
+  std::string sec_str(sec_name);
+  std::string prm_str(prm_name);
+  return ini_params.get_param(sec_str, prm_str);
+}
+
 void sim_t::set_histogram(bool value)
 {
   histogram_enabled = value;
@@ -215,6 +230,8 @@ bool sim_t::mmio_store(reg_t addr, size_t len, const uint8_t* bytes)
   return bus.store(addr, len, bytes);
 }
 
+extern char *dtc_path ;
+
 void sim_t::make_dtb()
 {
   const int reset_vec_size = 8;
@@ -237,6 +254,8 @@ void sim_t::make_dtb()
   std::vector<char> rom((char*)reset_vec, (char*)reset_vec + sizeof(reset_vec));
 
   dts = make_dts(INSNS_PER_RTC_TICK, CPU_HZ, procs, mems);
+  dtc_path = get_config_ini_str("common", "dtc_path");
+  fprintf(stderr, "dtc_path=%s\n", dtc_path);
   std::string dtb = dts_compile(dts);
 
   rom.insert(rom.end(), dtb.begin(), dtb.end());
