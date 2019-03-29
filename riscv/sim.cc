@@ -37,8 +37,9 @@ sim_t::sim_t(const char* isa, size_t nprocs, bool halted, reg_t start_pc,
 {
   signal(SIGINT, &handle_signal);
 
-  for (auto& x : mems)
+  for (auto& x : mems) {
     bus.add_device(x.first, x.second);
+  }
 
   debug_module.add_device(&bus);
 
@@ -121,9 +122,12 @@ void sim_t::step(size_t n)
 
       val = get_reg2((char*)"a2");
       fprintf(stderr, "X12: 0x%016" PRIx64 "\n", val);
+
+      fprintf(stderr, "xreg_addr: 0x%016" PRIx64 "\n", xreg_addr);
+      fprintf(stderr, "freg_addr: 0x%016" PRIx64 "\n", freg_addr);
       
 
-      if (xreg_addr && freg_addr) {
+      if (xreg_addr || freg_addr) {
         FILE *pf = NULL;
         fprintf(stderr, "xreg_addr: %p\n", xreg_addr);
         if (xreg_addr & 0x80000000ULL) {
@@ -137,21 +141,25 @@ void sim_t::step(size_t n)
 
         pf = fopen("regs_ref.c", "wt+");
         if (pf == NULL) {
-          printf("Error! Can't create file 'regs_ref.c'!\n");
+          fprintf(stderr, "Error! Can't create file 'regs_ref.c'!\n");
         } else {
           mmu = p->get_mmu();
-          fprintf(pf, "xreg_ref_data:\n");
-          for (int i = 0; i < 32; i++) {
-            val = mmu->load_uint64(xreg_addr);
-            fprintf(pf, "reg_x%d_ref: .dword 0x%016" PRIx64 "\n", i, val);
-            xreg_addr += 8;
+          if (xreg_addr) {
+            fprintf(pf, "xreg_ref_data:\n");
+            for (int i = 0; i < 32; i++) {
+              val = mmu->load_uint64(xreg_addr);
+              fprintf(pf, "reg_x%d_ref: .dword 0x%016" PRIx64 "\n", i, val);
+              xreg_addr += 8;
+            }
           }
 
-          fprintf(pf, "\nfreg_ref_data:\n");
-          for (int i = 0; i < 32; i++) {
-            val = mmu->load_uint64(freg_addr);
-            fprintf(pf, "reg_f%d_ref: .dword 0x%016" PRIx64 "\n", i, val);
-            freg_addr += 8;
+          if (freg_addr) {
+            fprintf(pf, "\nfreg_ref_data:\n");
+            for (int i = 0; i < 32; i++) {
+              val = mmu->load_uint64(freg_addr);
+              fprintf(pf, "reg_f%d_ref: .dword 0x%016" PRIx64 "\n", i, val);
+              freg_addr += 8;
+            }
           }
           fclose(pf);
         }

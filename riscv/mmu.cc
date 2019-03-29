@@ -37,9 +37,9 @@ void mmu_t::flush_tlb()
 static void throw_access_exception(reg_t addr, access_type type)
 {
   switch (type) {
-    case FETCH: throw trap_instruction_access_fault(addr);
-    case LOAD: throw trap_load_access_fault(addr);
-    case STORE: throw trap_store_access_fault(addr);
+    case FETCH: fprintf(stderr, "throw_access_exception: FETCH: %p\n", addr); return; //throw trap_instruction_access_fault(addr);
+    case LOAD: fprintf(stderr, "throw_access_exception: LOAD: %p\n", addr); return; //throw trap_load_access_fault(addr);
+    case STORE: fprintf(stderr, "throw_access_exception: STORE: %p\n", addr); return; //throw trap_store_access_fault(addr);
     default: abort();
   }
 }
@@ -112,7 +112,7 @@ void mmu_t::load_slow_path(reg_t addr, reg_t len, uint8_t* bytes)
     else
       refill_tlb(addr, paddr, host_addr, LOAD);
   } else if (!sim->mmio_load(paddr, len, bytes)) {
-    throw trap_load_access_fault(addr);
+    /* throw trap_load_access_fault(addr); */
   }
 
   if (!matched_trigger) {
@@ -141,7 +141,7 @@ void mmu_t::store_slow_path(reg_t addr, reg_t len, const uint8_t* bytes)
     else
       refill_tlb(addr, paddr, host_addr, STORE);
   } else if (!sim->mmio_store(paddr, len, bytes)) {
-    throw trap_store_access_fault(addr);
+    //throw trap_store_access_fault(addr);
   }
 }
 

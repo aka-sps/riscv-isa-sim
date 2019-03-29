@@ -62,11 +62,17 @@ static std::vector<std::pair<reg_t, mem_t*>> make_mems(const char* arg)
   std::vector<std::pair<reg_t, mem_t*>> res;
   while (true) {
     auto base = strtoull(arg, &p, 0);
-    if (!*p || *p != ':')
+    //fprintf(stderr, "base=%X p=%p p=\"%s\"\n", base, p, p);
+    if (!*p || *p != ':') {
+      fprintf(stderr, "Error! Wrong delimiter!\n");
       help();
+    }
     auto size = strtoull(p + 1, &p, 0);
-    if ((size | base) % PGSIZE != 0)
+    if ((size | base) % PGSIZE != 0) {
+      fprintf(stderr, "Error! Address and size must be page aligned!\n");
       help();
+    }
+    //fprintf(stderr, "base=%X size=0x%X\n", base, size);
     res.push_back(std::make_pair(reg_t(base), new mem_t(size)));
     if (!*p)
       break;

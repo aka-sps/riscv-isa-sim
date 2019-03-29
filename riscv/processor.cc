@@ -117,6 +117,7 @@ void processor_t::parse_isa_string(const char* str)
     bad_isa_string(str);
 
   max_isa = state.misa;
+  fprintf(stderr, "max_isa = 0x%08X\n", max_isa);
 }
 
 void state_t::reset(reg_t max_isa)
@@ -425,6 +426,33 @@ void processor_t::set_csr(int which, reg_t val)
       state.medeleg = (state.medeleg & ~mask) | (val & mask);
       break;
     }
+    case CSR_TIME:
+        state.time_val_cur = val;
+        state.time_val_start = state.minstret;
+        break;
+    /* IPI */
+    case 0xBD8:   // SCR_CSR_IPI_MADDR   
+    case 0xBD9:   // SCR_CSR_IPI_MSTATUS
+    case 0xBDA:   // SCR_CSR_IPI_MRDATA
+    case 0xBDB:   // SCR_CSR_IPI_MWDATA
+        return;
+
+    /* MPU */
+    case 0xBC4:
+    case 0xBC5:
+    case 0xBC6:
+    case 0xBC7:
+    case 0xBC8:
+        return;
+
+    /* PCU */
+    case 0xBFF:
+        return;
+
+    /* CACHE */
+    case 0xBD4:
+        state.scr_csr_cache_glbl = val & 0x3;
+        return;
     case CSR_MINSTRET:
     case CSR_MCYCLE:
       if (xlen == 32)
@@ -616,6 +644,35 @@ reg_t processor_t::get_csr(int which)
       if (ctr_ok)
         return state.minstret;
       break;
+    case CSR_TIME:
+        state.time_val_cur += state.time_val_start > state.minstret ?
+              state.time_val_start - state.minstret :
+              state.minstret - state.time_val_start; 
+        state.time_val_start = state.minstret;
+        return state.time_val_cur; 
+
+    /* IPI */
+    case 0xBD8:   // SCR_CSR_IPI_MADDR   
+    case 0xBD9:   // SCR_CSR_IPI_MSTATUS
+    case 0xBDA:   // SCR_CSR_IPI_MRDATA
+    case 0xBDB:   // SCR_CSR_IPI_MWDATA
+        return 0;
+
+    /* MPU */
+    case 0xBC4:
+    case 0xBC5:
+    case 0xBC6:
+    case 0xBC7:
+    case 0xBC8:
+        return 0;
+
+    /* PCU */
+    case 0xBFF:
+        return 0;
+
+    /* CACHE CTRL */
+    case 0xBD4:
+        return state.scr_csr_cache_glbl;
     case CSR_MINSTRET:
     case CSR_MCYCLE:
       return state.minstret;
@@ -640,6 +697,7 @@ reg_t processor_t::get_csr(int which)
         sstatus |= (xlen == 32 ? SSTATUS32_SD : SSTATUS64_SD);
       return sstatus;
     }
+  
     case CSR_SIP: return state.mip & state.mideleg;
     case CSR_SIE: return state.mie & state.mideleg;
     case CSR_SEPC: return state.sepc & pc_alignment_mask();

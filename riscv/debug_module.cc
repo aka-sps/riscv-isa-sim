@@ -9,7 +9,7 @@
 #include "debug_rom/debug_rom.h"
 #include "debug_rom_defines.h"
 
-#if 0
+#if 1
 #  define D(x) x
 #else
 #  define D(x)
