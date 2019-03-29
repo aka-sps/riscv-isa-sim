@@ -275,7 +275,7 @@ inline freg_t f128_negate(freg_t a)
   (which); })
 
 // Seems that 0x0 doesn't work.
-#define DEBUG_START             0x100
-#define DEBUG_END                 (0x1000 - 1)
+#define DEBUG_START             (0xF0000000 + 0x100)
+#define DEBUG_END               (0xF0000000 + (0x1000 - 1))
 
 #endif
