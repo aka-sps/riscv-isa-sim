@@ -24,19 +24,30 @@ static void handle_signal(int sig)
   signal(sig, &handle_signal);
 }
 
-sim_t::sim_t(const char* isa, size_t nprocs, bool halted, reg_t start_pc,
-             std::vector<std::pair<reg_t, mem_t*>> mems,
+sim_t::sim_t(const char* isa, const char* varch, size_t nprocs, bool halted,
+             reg_t start_pc, std::vector<std::pair<reg_t, mem_t*>> mems,
+             std::vector<std::pair<reg_t, abstract_device_t*>> plugin_devices,
              const std::vector<std::string>& args,
-             std::vector<int> const hartids, unsigned progsize,
-             unsigned max_bus_master_bits, bool require_authentication)
-  : htif_t(args), mems(mems), procs(std::max(nprocs, size_t(1))),
-    start_pc(start_pc), current_step(0), current_proc(0), debug(false),
-    histogram_enabled(false), dtb_enabled(true), remote_bitbang(NULL),
-    debug_module(this, progsize, max_bus_master_bits, require_authentication)
+             std::vector<int> const hartids,
+             const debug_module_config_t &dm_config)
+  : htif_t(args), mems(mems), plugin_devices(plugin_devices),
+    procs(std::max(nprocs, size_t(1))), start_pc(start_pc), current_step(0),
+    current_proc(0), debug(false), histogram_enabled(false), dtb_enabled(true),
+    remote_bitbang(NULL), debug_module(this, dm_config)
 {
   signal(SIGINT, &handle_signal);
 
-  for (auto& x : mems)
+  mems.push_back(std::make_pair(reg_t(SRAM_BASE), new mem_t(SRAM_SIZE)));
+  mems.push_back(std::make_pair(reg_t(TCM_BASE), new mem_t(TCM_SIZE)));
+  mems.push_back(std::make_pair(reg_t(TIM1_BASE), new mem_t(TIM1_SIZE)));
+
+  fprintf(stderr, "Current memory configuration:\n");
+  for (auto& x : mems) {
+    fprintf(stderr, "Base: 0x%.16lx | Size: 0x%lx\n", x.first, (x.second)->size());
+    bus.add_device(x.first, x.second);
+  }
+
+  for (auto& x : plugin_devices)
     bus.add_device(x.first, x.second);
 
   debug_module.add_device(&bus);
@@ -45,7 +56,7 @@ sim_t::sim_t(const char* isa, size_t nprocs, bool halted, reg_t start_pc,
 
   if (hartids.size() == 0) {
     for (size_t i = 0; i < procs.size(); i++) {
-      procs[i] = new processor_t(isa, this, i, halted);
+      procs[i] = new processor_t(isa, varch, this, i, halted);
     }
   }
   else {
@@ -54,7 +65,7 @@ sim_t::sim_t(const char* isa, size_t nprocs, bool halted, reg_t start_pc,
       exit(1);
     }
     for (size_t i = 0; i < procs.size(); i++) {
-      procs[i] = new processor_t(isa, this, hartids[i], halted);
+      procs[i] = new processor_t(isa, varch, this, hartids[i], halted);
     }
   }
 
@@ -100,8 +111,44 @@ int sim_t::run()
 
 void sim_t::step(size_t n)
 {
+  processor_t *p = get_core(current_proc);
+
   for (size_t i = 0, steps = 0; i < n; i += steps)
   {
+    // sc_exit
+    if (p->get_state()->pc == get_sc_exit_addr() + 4) {
+      reg_t xreg_addr = get_xreg_output_data();
+      reg_t freg_addr = get_freg_output_data();
+      mmu_t* mmu = p->get_mmu();
+      reg_t val;
+
+      FILE *pf = fopen("regs_ref.c", "wt+");
+      if (pf == NULL) {
+        fprintf(stderr, "Error! Can't create file 'regs_ref.c'!\n");
+        stop();
+        exit(0);
+      }
+
+      if (xreg_addr) {
+        for (int i = 0; i < 32; i++) {
+          val = mmu->load_uint64(xreg_addr);
+          fprintf(pf, "reg_x%d_ref: .dword 0x%016" PRIx64 "\n", i, val);
+          xreg_addr += 8;
+        }
+      }
+
+      if(freg_addr) {
+        for (int i = 0; i < 32; i++) {
+          val = mmu->load_uint64(freg_addr);
+          fprintf(pf, "reg_f%d_ref: .dword 0x%016" PRIx64 "\n", i, val);
+          freg_addr += 8;
+        }
+      }
+      fclose(pf);
+      stop();
+      exit(0);
+    }
+    // sc_exit
     steps = std::min(n - i, INTERLEAVE - current_step);
     procs[current_proc]->step(steps);
 

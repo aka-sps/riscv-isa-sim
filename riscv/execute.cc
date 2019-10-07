@@ -85,13 +85,13 @@ static reg_t execute_insn(processor_t* p, reg_t pc, insn_fetch_t fetch)
 
 bool processor_t::slow_path()
 {
-  return debug || state.single_step != state.STEP_NONE || state.dcsr.cause;
+  return debug || state.single_step != state.STEP_NONE || state.debug_mode;
 }
 
 // fetch/decode/execute loop
 void processor_t::step(size_t n)
 {
-  if (state.dcsr.cause == DCSR_CAUSE_NONE) {
+  if (!state.debug_mode) {
     if (halt_request) {
       enter_debug_mode(DCSR_CAUSE_DEBUGINT);
     } // !!!The halt bit in DCSR is deprecated.
@@ -130,7 +130,7 @@ void processor_t::step(size_t n)
         {
           if (unlikely(!state.serialized && state.single_step == state.STEP_STEPPED)) {
             state.single_step = state.STEP_NONE;
-            if (state.dcsr.cause == DCSR_CAUSE_NONE) {
+            if (!state.debug_mode) {
               enter_debug_mode(DCSR_CAUSE_STEP);
               // enter_debug_mode changed state.pc, so we can't just continue.
               break;
@@ -145,15 +145,7 @@ void processor_t::step(size_t n)
           if (debug && !state.serialized)
             disasm(fetch.insn);
           pc = execute_insn(this, pc, fetch);
-
           advance_pc();
-
-          if (unlikely(state.pc >= DEBUG_ROM_ENTRY &&
-                       state.pc < DEBUG_END)) {
-            // We're waiting for the debugger to tell us something.
-            return;
-          }
-
         }
       }
       else while (instret < n)
@@ -243,6 +235,16 @@ void processor_t::step(size_t n)
         default:
           abort();
       }
+    }
+    catch (wait_for_interrupt_t &t)
+    {
+      // Return to the outer simulation loop, which gives other devices/harts a
+      // chance to generate interrupts.
+      //
+      // In the debug ROM this prevents us from wasting time looping, but also
+      // allows us to switch to other threads only once per idle loop in case
+      // there is activity.
+      n = instret;
     }
 
     state.minstret += instret;
