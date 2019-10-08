@@ -156,14 +156,6 @@
 #define EXT_IO_BASE        0x40000000
 #define DRAM_BASE          0x80000000
 
-#define SRAM_BASE          0x00000000
-#define SRAM_SIZE          0x00010000
-#define TCM_BASE           0x00480000
-#define TCM_SIZE           0x00010000
-#define TIM1_BASE          0xFFFFE00000000000
-#define TIM1_SIZE          0x00001000
-
-
 /* page table entry (PTE) fields */
 #define PTE_V     0x001 /* Valid */
 #define PTE_R     0x002 /* Read */

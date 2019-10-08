@@ -108,6 +108,7 @@ int main(int argc, char** argv)
   bool log = false;
   bool dump_dts = false;
   bool dtb_enabled = true;
+  const char *dtc_path;
   size_t nprocs = 1;
   reg_t start_pc = reg_t(-1);
   std::vector<std::pair<reg_t, mem_t*>> mems;
@@ -234,6 +235,9 @@ int main(int argc, char** argv)
       [&](const char* s){dm_config.support_abstract_csr_access = false;});
   parser.option(0, "dm-no-halt-groups", 0,
       [&](const char* s){dm_config.support_haltgroups = false;});
+   parser.option(0, "dtc-path", 1, [&](const char *s){
+    dtc_path = s;
+  });
 
   auto argv1 = parser.parse(argv);
   std::vector<std::string> htif_args(argv1, (const char*const*)argv + argc);
@@ -244,7 +248,7 @@ int main(int argc, char** argv)
     help();
 
   sim_t s(isa, varch, nprocs, halted, start_pc, mems, plugin_devices, htif_args,
-      std::move(hartids), dm_config);
+      std::move(hartids), dm_config, dtc_path);
   std::unique_ptr<remote_bitbang_t> remote_bitbang((remote_bitbang_t *) NULL);
   std::unique_ptr<jtag_dtm_t> jtag_dtm(
       new jtag_dtm_t(&s.debug_module, dmi_rti));

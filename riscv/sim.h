@@ -25,7 +25,7 @@ public:
         reg_t start_pc, std::vector<std::pair<reg_t, mem_t*>> mems,
         std::vector<std::pair<reg_t, abstract_device_t*>> plugin_devices,
         const std::vector<std::string>& args, const std::vector<int> hartids,
-        const debug_module_config_t &dm_config);
+        const debug_module_config_t &dm_config, const char *dts_path);
   ~sim_t();
 
   // run the simulation to completion
@@ -57,6 +57,7 @@ private:
   std::unique_ptr<rom_device_t> boot_rom;
   std::unique_ptr<clint_t> clint;
   bus_t bus;
+  const char *dtc_path;
 
   processor_t* get_core(const std::string& i);
   void step(size_t n); // step through simulation

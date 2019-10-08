@@ -29,17 +29,14 @@ sim_t::sim_t(const char* isa, const char* varch, size_t nprocs, bool halted,
              std::vector<std::pair<reg_t, abstract_device_t*>> plugin_devices,
              const std::vector<std::string>& args,
              std::vector<int> const hartids,
-             const debug_module_config_t &dm_config)
+             const debug_module_config_t &dm_config,
+             const char *dtc_path)
   : htif_t(args), mems(mems), plugin_devices(plugin_devices),
     procs(std::max(nprocs, size_t(1))), start_pc(start_pc), current_step(0),
     current_proc(0), debug(false), histogram_enabled(false), dtb_enabled(true),
-    remote_bitbang(NULL), debug_module(this, dm_config)
+    remote_bitbang(NULL), debug_module(this, dm_config), dtc_path(dtc_path)
 {
   signal(SIGINT, &handle_signal);
-
-  mems.push_back(std::make_pair(reg_t(SRAM_BASE), new mem_t(SRAM_SIZE)));
-  mems.push_back(std::make_pair(reg_t(TCM_BASE), new mem_t(TCM_SIZE)));
-  mems.push_back(std::make_pair(reg_t(TIM1_BASE), new mem_t(TIM1_SIZE)));
 
   fprintf(stderr, "Current memory configuration:\n");
   for (auto& x : mems) {
@@ -95,7 +92,7 @@ void sim_t::main()
     if (debug || ctrlc_pressed)
       interactive();
     else
-      step(INTERLEAVE);
+      step(1);
     if (remote_bitbang) {
       remote_bitbang->tick();
     }
@@ -116,11 +113,15 @@ void sim_t::step(size_t n)
   for (size_t i = 0, steps = 0; i < n; i += steps)
   {
     // sc_exit
-    if (p->get_state()->pc == get_sc_exit_addr() + 4) {
+    if (p->get_state()->pc == get_sc_exit_addr()) {
       reg_t xreg_addr = get_xreg_output_data();
       reg_t freg_addr = get_freg_output_data();
       mmu_t* mmu = p->get_mmu();
       reg_t val;
+
+      fprintf(stderr, "X10: 0x%.16lx""\n", p->get_state()->XPR[10]);
+      fprintf(stderr, "X10: 0x%.16lx""\n", p->get_state()->XPR[11]);
+      fprintf(stderr, "X10: 0x%.16lx""\n", p->get_state()->XPR[12]);
 
       FILE *pf = fopen("regs_ref.c", "wt+");
       if (pf == NULL) {
@@ -130,6 +131,7 @@ void sim_t::step(size_t n)
       }
 
       if (xreg_addr) {
+        fprintf(pf, "xreg_ref_data:\n");
         for (int i = 0; i < 32; i++) {
           val = mmu->load_uint64(xreg_addr);
           fprintf(pf, "reg_x%d_ref: .dword 0x%016" PRIx64 "\n", i, val);
@@ -138,6 +140,7 @@ void sim_t::step(size_t n)
       }
 
       if(freg_addr) {
+        fprintf(pf, "\nfreg_ref_data:\n");
         for (int i = 0; i < 32; i++) {
           val = mmu->load_uint64(freg_addr);
           fprintf(pf, "reg_f%d_ref: .dword 0x%016" PRIx64 "\n", i, val);
@@ -227,7 +230,11 @@ void sim_t::make_dtb()
   std::vector<char> rom((char*)reset_vec, (char*)reset_vec + sizeof(reset_vec));
 
   dts = make_dts(INSNS_PER_RTC_TICK, CPU_HZ, procs, mems);
-  std::string dtb = dts_compile(dts);
+  std::string dtb;
+  if ((access(dtc_path, F_OK ) != -1))
+    dtb = dts_compile(dts, dtc_path); // att
+  else
+    dtb = dts_compile(dts, NULL); // att
 
   rom.insert(rom.end(), dtb.begin(), dtb.end());
   const int align = 0x1000;

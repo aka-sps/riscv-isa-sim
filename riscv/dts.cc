@@ -74,7 +74,7 @@ std::string make_dts(size_t insns_per_rtc_tick, size_t cpu_hz,
   return s.str();
 }
 
-std::string dts_compile(const std::string& dts)
+std::string dts_compile(const std::string& dts, const char *dtc_path)
 {
   // Convert the DTS to DTB
   int dts_pipe[2];
@@ -117,7 +117,9 @@ std::string dts_compile(const std::string& dts)
     close(dts_pipe[1]);
     close(dtb_pipe[0]);
     close(dtb_pipe[1]);
-    execl(DTC, DTC, "-O", "dtb", 0);
+    if (dtc_path != NULL) {
+      execl(dtc_path, dtc_path, "-O", "dtb", 0);
+    }
     std::cerr << "Failed to run " DTC ": " << strerror(errno) << std::endl;
     exit(1);
   }
