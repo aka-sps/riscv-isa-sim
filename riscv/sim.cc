@@ -139,7 +139,7 @@ void sim_t::step(size_t n)
         }
       }
 
-      if(freg_addr) {
+      if (freg_addr) {
         fprintf(pf, "\nfreg_ref_data:\n");
         for (int i = 0; i < 32; i++) {
           val = mmu->load_uint64(freg_addr);
@@ -232,9 +232,9 @@ void sim_t::make_dtb()
   dts = make_dts(INSNS_PER_RTC_TICK, CPU_HZ, procs, mems);
   std::string dtb;
   if ((access(dtc_path, F_OK ) != -1))
-    dtb = dts_compile(dts, dtc_path); // att
+    dtb = dts_compile(dts, dtc_path);
   else
-    dtb = dts_compile(dts, NULL); // att
+    dtb = dts_compile(dts, NULL);
 
   rom.insert(rom.end(), dtb.begin(), dtb.end());
   const int align = 0x1000;
