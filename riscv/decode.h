@@ -2374,7 +2374,7 @@ for (reg_t i = 0; i < P.VU.vlmax && P.VU.vl != 0; ++i) { \
       break; \
   }
 
-#define DEBUG_START             0x0
-#define DEBUG_END               (0x1000 - 1)
+#define DEBUG_START             0x90000000
+#define DEBUG_END               (0x90001000 - 1)
 
 #endif
