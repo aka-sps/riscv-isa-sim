@@ -60,8 +60,9 @@ sim_t::sim_t(const char* isa, const char* priv, const char* varch,
   for (auto& x : mems)
     bus.add_device(x.first, x.second);
 
-  for (auto& x : plugin_devices)
+  for (auto& x : plugin_devices) {
     bus.add_device(x.first, x.second);
+  }
 
   debug_module.add_device(&bus);
 
@@ -91,6 +92,11 @@ sim_t::sim_t(const char* isa, const char* priv, const char* varch,
   } else {
     bus.add_device(clint_base, clint.get());
   }
+
+  //handle mm mtimer
+  mtimer.reset(new mtimer_device_t(procs));
+  reg_t mtimer_base = 0x72000000;
+  bus.add_device(mtimer_base, mtimer.get());
 
   //handle pmp
   for (size_t i = 0; i < nprocs; i++) {
@@ -189,12 +195,14 @@ void sim_t::step(size_t n)
 {
   for (size_t i = 0, steps = 0; i < n; i += steps)
   {
+    mtimer->increment(1); /* XXX */
     steps = std::min(n - i, INTERLEAVE - current_step);
     procs[current_proc]->step(steps);
 
     current_step += steps;
     if (current_step == INTERLEAVE)
     {
+//      mtimer->increment(INTERLEAVE / INSNS_PER_RTC_TICK); /* XXX */
       current_step = 0;
       procs[current_proc]->get_mmu()->yield_load_reservation();
       if (++current_proc == procs.size()) {

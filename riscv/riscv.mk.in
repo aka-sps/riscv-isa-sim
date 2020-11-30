@@ -32,6 +32,7 @@ riscv_hdrs = \
 	debug_rom_defines.h \
 	remote_bitbang.h \
 	jtag_dtm.h \
+	mtimer.h \
 
 riscv_install_hdrs = mmio_plugin.h
 
@@ -57,6 +58,7 @@ riscv_srcs = \
 	debug_module.cc \
 	remote_bitbang.cc \
 	jtag_dtm.cc \
+	mtimer.cc \
 	$(riscv_gen_srcs) \
 
 riscv_test_srcs =
