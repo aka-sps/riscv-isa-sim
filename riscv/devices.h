@@ -53,7 +53,7 @@ class mem_t : public abstract_device_t {
 
 class clint_t : public abstract_device_t {
  public:
-  clint_t(std::vector<processor_t*>&, uint64_t freq_hz, bool real_time);
+  clint_t(std::vector<processor_t*>& procs, uint64_t freq_hz, bool real_time);
   bool load(reg_t addr, size_t len, uint8_t* bytes);
   bool store(reg_t addr, size_t len, const uint8_t* bytes);
   size_t size() { return CLINT_SIZE; }
@@ -73,6 +73,7 @@ class clint_t : public abstract_device_t {
 
 class mmio_plugin_device_t : public abstract_device_t {
  public:
+/*  mmio_plugin_device_t(std::vector<processor_t*>& procs, const std::string& name, const std::string& args); */ /* XXX */
   mmio_plugin_device_t(const std::string& name, const std::string& args);
   virtual ~mmio_plugin_device_t() override;
 
@@ -82,6 +83,16 @@ class mmio_plugin_device_t : public abstract_device_t {
  private:
   mmio_plugin_t plugin;
   void* user_data;
+};
+
+class mtimer_device_t : public abstract_device_t {
+ public:
+  mtimer_device_t(std::vector<processor_t*>& procs);
+  bool load(reg_t addr, size_t len, uint8_t* bytes);
+  bool store(reg_t addr, size_t len, const uint8_t* bytes);
+  void increment(reg_t inc);
+ private:
+  std::vector<processor_t*>& procs;
 };
 
 #endif
