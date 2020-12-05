@@ -1,0 +1,12 @@
+/* privs */
+#define MPU_VALID 1
+#define MPU_MMR 2
+#define MPU_MMW 4
+#define MPU_MMX 8
+#define MPU_UMR 0x10
+#define MPU_UMW 0x20
+#define MPU_UMX 0x40
+#define MPU_SMR 0x80
+#define MPU_SMW 0x100
+#define MPU_SMX 0x200
+#define MPU_LOCK 0x80000000
