@@ -1,6 +1,7 @@
 // See LICENSE for license details.
 
 #include "mmu.h"
+#include "mpu.h"
 #include "simif.h"
 #include "processor.h"
 
@@ -73,6 +74,8 @@ reg_t mmu_t::translate(reg_t addr, reg_t len, access_type type, uint32_t xlate_f
   reg_t paddr = walk(addr, type, mode, virt, mxr) | (addr & (PGSIZE-1));
   if (!pmp_ok(paddr, len, type, mode))
     throw_access_exception(addr, type);
+  if(!mpu_ok(paddr, len, type, mode))
+    throw_access_exception(addr, type);
   return paddr;
 }
 
@@ -127,6 +130,7 @@ bool mmu_t::mmio_ok(reg_t addr, access_type type)
 
 bool mmu_t::mmio_load(reg_t addr, size_t len, uint8_t* bytes)
 {
+/*  printf("Howdy partner %d\n", proc->get_id()); */
   if (!mmio_ok(addr, LOAD))
     return false;
 
@@ -162,6 +166,7 @@ void mmu_t::load_slow_path(reg_t addr, reg_t len, uint8_t* bytes, uint32_t xlate
       throw *matched_trigger;
   }
 }
+
 
 void mmu_t::store_slow_path(reg_t addr, reg_t len, const uint8_t* bytes, uint32_t xlate_flags)
 {
@@ -211,6 +216,58 @@ tlb_entry_t mmu_t::refill_tlb(reg_t vaddr, reg_t paddr, char* host_addr, access_
   tlb_entry_t entry = {host_addr - vaddr, paddr - vaddr};
   tlb_data[idx] = entry;
   return entry;
+}
+
+/* TODO: less dumb implementation */
+reg_t mmu_t::mpu_ok(reg_t addr, reg_t len, access_type type, reg_t mode)
+{
+  struct state_t *s = &proc->state;
+  reg_t atc;
+  int i;
+  bool gp, ga = true;
+
+  for (i = 0; i < 16; i++) {
+    gp = false;
+    if (!(s->mpu_control[i] & MPU_VALID))
+      continue;
+    for (atc = addr; atc < addr + len; atc++) {
+      if ((atc & s->mpu_mask[i]) == (s->mpu_address[i] & s->mpu_mask[i])) {
+        switch (mode) {
+        case PRV_M:
+          if (((type == LOAD) && (s->mpu_control[i] & MPU_MMR)) ||
+              ((type == STORE) && (s->mpu_control[i] & MPU_MMW)) ||
+              ((type == FETCH) && (s->mpu_control[i] & MPU_MMX))) {
+            gp = true;
+          } else {
+            return false;
+          }
+          break;
+        case PRV_S:
+          if (((type == LOAD) && (s->mpu_control[i] & MPU_SMR)) ||
+              ((type == STORE) && (s->mpu_control[i] & MPU_SMW)) ||
+              ((type == FETCH) && (s->mpu_control[i] & MPU_SMX))) {
+            gp = true;
+          } else {
+            return false;
+          }          
+          break;
+        case PRV_U:
+          if (((type == LOAD) && (s->mpu_control[i] & MPU_UMR)) ||
+              ((type == STORE) && (s->mpu_control[i] & MPU_UMW)) ||
+              ((type == FETCH) && (s->mpu_control[i] & MPU_UMX))) {
+            gp = true;
+          } else {
+            return false;
+          }
+          break;
+        }
+      if (gp == false)
+        ga = false;
+      }
+    }
+  }
+
+  return ga;
 }
 
 reg_t mmu_t::pmp_ok(reg_t addr, reg_t len, access_type type, reg_t mode)
@@ -318,7 +375,7 @@ reg_t mmu_t::s2xlate(reg_t gva, reg_t gpa, access_type type, access_type trap_ty
     // check that physical address of PTE is legal
     auto pte_paddr = base + idx * vm.ptesize;
     auto ppte = sim->addr_to_mem(pte_paddr);
-    if (!ppte || !pmp_ok(pte_paddr, vm.ptesize, LOAD, PRV_S)) {
+    if (!ppte || !pmp_ok(pte_paddr, vm.ptesize, LOAD, PRV_S) || !mpu_ok(pte_paddr, vm.ptesize, LOAD, PRV_S)) {
       throw_access_exception(gva, trap_type);
     }
 
@@ -342,7 +399,7 @@ reg_t mmu_t::s2xlate(reg_t gva, reg_t gpa, access_type type, access_type trap_ty
 #ifdef RISCV_ENABLE_DIRTY
       // set accessed and possibly dirty bits.
       if ((pte & ad) != ad) {
-        if (!pmp_ok(pte_paddr, vm.ptesize, STORE, PRV_S))
+        if (!pmp_ok(pte_paddr, vm.ptesize, STORE, PRV_S) || !mpu_ok(pte_paddr, vm.ptesize, STORE, PRV_S))
           throw_access_exception(gva, trap_type);
         *(target_endian<uint32_t>*)ppte |= to_target((uint32_t)ad);
       }
@@ -392,7 +449,7 @@ reg_t mmu_t::walk(reg_t addr, access_type type, reg_t mode, bool virt, bool mxr)
     // check that physical address of PTE is legal
     auto pte_paddr = s2xlate(addr, base + idx * vm.ptesize, LOAD, type, virt, false);
     auto ppte = sim->addr_to_mem(pte_paddr);
-    if (!ppte || !pmp_ok(pte_paddr, vm.ptesize, LOAD, PRV_S))
+    if (!ppte || !pmp_ok(pte_paddr, vm.ptesize, LOAD, PRV_S) || !mpu_ok(pte_paddr, vm.ptesize, LOAD, PRV_S))
       throw_access_exception(addr, type);
 
     reg_t pte = vm.ptesize == 4 ? from_target(*(target_endian<uint32_t>*)ppte) : from_target(*(target_endian<uint64_t>*)ppte);
@@ -415,7 +472,7 @@ reg_t mmu_t::walk(reg_t addr, access_type type, reg_t mode, bool virt, bool mxr)
 #ifdef RISCV_ENABLE_DIRTY
       // set accessed and possibly dirty bits.
       if ((pte & ad) != ad) {
-        if (!pmp_ok(pte_paddr, vm.ptesize, STORE, PRV_S))
+        if (!pmp_ok(pte_paddr, vm.ptesize, STORE, PRV_S) || !mpu_ok(pte_paddr, vm.ptesize, STORE, PRV_S))
           throw_access_exception(addr, type);
         *(target_endian<uint32_t>*)ppte |= to_target((uint32_t)ad);
       }

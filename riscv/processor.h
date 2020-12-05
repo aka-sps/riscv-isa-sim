@@ -6,6 +6,7 @@
 #include "config.h"
 #include "devices.h"
 #include "trap.h"
+#include "mpu.h"
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -198,6 +199,11 @@ struct state_t
   reg_t vscause;
   reg_t vstval;
   reg_t vsatp;
+
+  uint32_t mpu_select;
+  uint32_t mpu_control[16] = { (MPU_VALID | MPU_MMR | MPU_MMW | MPU_MMX | (3 << 16)) };
+  reg_t mpu_address[16] = { };
+  reg_t mpu_mask[16] = { };
 
   reg_t dpc;
   reg_t dscratch0, dscratch1;
@@ -463,6 +469,7 @@ private:
   friend class mmu_t;
   friend class clint_t;
   friend class extension_t;
+  friend class mtimer_device_t;
 
   void parse_varch_string(const char*);
   void parse_priv_string(const char*);
