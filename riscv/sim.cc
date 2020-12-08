@@ -87,12 +87,14 @@ sim_t::sim_t(const char* isa, const char* priv, const char* varch,
   make_dtb();
 
   //handle clic
-  clint.reset(new clint_t(procs, CPU_HZ / INSNS_PER_RTC_TICK, real_time_clint));
-  reg_t clint_base;
-  if (fdt_parse_clint((void *)dtb.c_str(), &clint_base, "riscv,clint0")) {
-    bus.add_device(CLINT_BASE, clint.get());
-  } else {
-    bus.add_device(clint_base, clint.get());
+  if (mtimer_base == 0) {
+    clint.reset(new clint_t(procs, CPU_HZ / INSNS_PER_RTC_TICK, real_time_clint));
+    reg_t clint_base;
+    if (fdt_parse_clint((void *)dtb.c_str(), &clint_base, "riscv,clint0")) {
+      bus.add_device(CLINT_BASE, clint.get());
+    } else {
+      bus.add_device(clint_base, clint.get());
+    }
   }
 
   //handle mm mtimer
@@ -211,7 +213,8 @@ void sim_t::step(size_t n)
       procs[current_proc]->get_mmu()->yield_load_reservation();
       if (++current_proc == procs.size()) {
         current_proc = 0;
-        clint->increment(INTERLEAVE / INSNS_PER_RTC_TICK);
+        if (mtimer_base == 0)
+          clint->increment(INTERLEAVE / INSNS_PER_RTC_TICK);
       }
 
       host->switch_to();
