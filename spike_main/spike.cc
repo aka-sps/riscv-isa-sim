@@ -15,6 +15,8 @@
 #include <fstream>
 #include "../VERSION"
 
+reg_t mtimer_base; /* XXX */
+
 static void help(int exit_code = 1)
 {
   fprintf(stderr, "Spike RISC-V ISA Simulator " SPIKE_VERSION "\n\n");
@@ -66,6 +68,7 @@ static void help(int exit_code = 1)
   fprintf(stderr, "  --dm-no-abstract-csr  Debug module won't support abstract to authenticate\n");
   fprintf(stderr, "  --dm-no-halt-groups   Debug module won't support halt groups\n");
   fprintf(stderr, "  --dm-no-impebreak     Debug module won't support implicit ebreak in program buffer\n");
+  fprintf(stderr, "  --syn_mtimer     SCR mtimer base address\n");
 
   exit(exit_code);
 }
@@ -283,6 +286,7 @@ int main(int argc, char** argv)
     }
     char* end;
     reg_t base = static_cast<reg_t>(strtoull(base_str.c_str(), &end, 0));
+/*    printf("%lx\n", base);*/
     if (end != &*base_str.cend()) {
       throw std::runtime_error("Error parsing device base address.");
     }
@@ -311,6 +315,7 @@ int main(int argc, char** argv)
   parser.option('H', 0, 0, [&](const char* s){halted = true;});
   parser.option(0, "rbb-port", 1, [&](const char* s){use_rbb = true; rbb_port = atoul_safe(s);});
   parser.option(0, "pc", 1, [&](const char* s){start_pc = strtoull(s, 0, 0);});
+  parser.option(0, "syn_mtimer", 1, [&](const char* s){mtimer_base = strtoull(s, 0, 0);});
   parser.option(0, "hartids", 1, hartids_parser);
   parser.option(0, "ic", 1, [&](const char* s){ic.reset(new icache_sim_t(s));});
   parser.option(0, "dc", 1, [&](const char* s){dc.reset(new dcache_sim_t(s));});

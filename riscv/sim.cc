@@ -17,6 +17,8 @@
 #include <sys/wait.h>
 #include <sys/types.h>
 
+extern reg_t mtimer_base;
+
 volatile bool ctrlc_pressed = false;
 static void handle_signal(int sig)
 {
@@ -94,9 +96,10 @@ sim_t::sim_t(const char* isa, const char* priv, const char* varch,
   }
 
   //handle mm mtimer
-  mtimer.reset(new mtimer_device_t(procs));
-  reg_t mtimer_base = 0x72000000;
-  bus.add_device(mtimer_base, mtimer.get());
+  if (mtimer_base != 0) {
+    mtimer.reset(new mtimer_device_t(procs));
+    bus.add_device(mtimer_base, mtimer.get());
+  }
 
   //handle pmp
   for (size_t i = 0; i < nprocs; i++) {
@@ -195,7 +198,8 @@ void sim_t::step(size_t n)
 {
   for (size_t i = 0, steps = 0; i < n; i += steps)
   {
-    mtimer->increment(1); /* XXX */
+    if (mtimer_base != 0)
+      mtimer->increment(1);
     steps = std::min(n - i, INTERLEAVE - current_step);
     procs[current_proc]->step(steps);
 
