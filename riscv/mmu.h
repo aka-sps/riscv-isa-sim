@@ -450,6 +450,7 @@ private:
 
   reg_t pmp_homogeneous(reg_t addr, reg_t len);
   reg_t pmp_ok(reg_t addr, reg_t len, access_type type, reg_t mode);
+  reg_t mpu_ok(reg_t addr, reg_t len, access_type type, reg_t mode);
 
 #ifdef RISCV_ENABLE_DUAL_ENDIAN
   bool target_big_endian;
