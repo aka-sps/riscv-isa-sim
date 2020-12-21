@@ -85,6 +85,7 @@ private:
   std::unique_ptr<rom_device_t> boot_rom;
   std::unique_ptr<clint_t> clint;
   std::unique_ptr<mtimer_device_t> mtimer;
+  std::unique_ptr<print_device_t> print;
   bus_t bus;
   log_file_t log_file;
 
