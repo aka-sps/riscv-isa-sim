@@ -17,6 +17,9 @@
 #include <signal.h>
 #include <getopt.h>
 
+/* XXX */
+reg_t exit_addr;
+
 /* Attempt to determine the execution prefix automatically.  autoconf
  * sets PREFIX, and pconfigure sets __PCONFIGURE__PREFIX. */
 #if !defined(PREFIX) && defined(__PCONFIGURE__PREFIX)
@@ -125,6 +128,9 @@ std::map<std::string, uint64_t> htif_t::load_payload(const std::string& payload,
 void htif_t::load_program()
 {
   std::map<std::string, uint64_t> symbols = load_payload(targs[0], &entry);
+
+  if (symbols.count("sc_exit"))
+    exit_addr = symbols["sc_exit"];
 
   if (symbols.count("tohost") && symbols.count("fromhost")) {
     tohost_addr = symbols["tohost"];
