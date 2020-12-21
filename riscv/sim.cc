@@ -18,6 +18,7 @@
 #include <sys/types.h>
 
 extern reg_t mtimer_base;
+extern reg_t print_base;
 
 volatile bool ctrlc_pressed = false;
 static void handle_signal(int sig)
@@ -101,6 +102,12 @@ sim_t::sim_t(const char* isa, const char* priv, const char* varch,
   if (mtimer_base != 0) {
     mtimer.reset(new mtimer_device_t(procs));
     bus.add_device(mtimer_base, mtimer.get());
+  }
+
+  //handle print
+  if (print_base != 0) {
+    print.reset(new print_device_t());
+    bus.add_device(print_base, print.get());
   }
 
   //handle pmp

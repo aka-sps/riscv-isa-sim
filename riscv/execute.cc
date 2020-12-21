@@ -5,6 +5,12 @@
 #include "disasm.h"
 #include <cassert>
 
+/* XXX */
+extern volatile bool ctrlc_pressed;
+
+/* XXX */
+extern reg_t exit_addr;
+
 #ifdef RISCV_ENABLE_COMMITLOG
 static void commit_log_reset(processor_t* p)
 {
@@ -12,6 +18,7 @@ static void commit_log_reset(processor_t* p)
   p->get_state()->log_mem_read.clear();
   p->get_state()->log_mem_write.clear();
 }
+
 
 static void commit_log_stash_privilege(processor_t* p)
 {
@@ -216,6 +223,8 @@ bool processor_t::slow_path()
 // fetch/decode/execute loop
 void processor_t::step(size_t n)
 {
+  int i;
+
   if (!state.debug_mode) {
     if (halt_request == HR_REGULAR) {
       enter_debug_mode(DCSR_CAUSE_DEBUGINT);
@@ -232,7 +241,15 @@ void processor_t::step(size_t n)
     reg_t pc = state.pc;
     mmu_t* _mmu = mmu;
 
+/* not really a place for this? */
     #define advance_pc() \
+  if ((pc == exit_addr) && (exit_addr != 0)) {  \
+    printf("exit status:"); \
+    ctrlc_pressed = true; /* TODO: less dumb way to halt. This one does not work w/o -d. */ \
+    for (i = 10; i < 15; i++) \
+      printf("\t%lx", state.XPR[i]); \
+    printf("\n"); \
+  } \
      if (unlikely(invalid_pc(pc))) { \
        switch (pc) { \
          case PC_SERIALIZE_BEFORE: state.serialized = true; break; \
