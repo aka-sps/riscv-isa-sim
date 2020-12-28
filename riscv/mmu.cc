@@ -214,11 +214,14 @@ tlb_entry_t mmu_t::refill_tlb(reg_t vaddr, reg_t paddr, char* host_addr, access_
   }
 
   tlb_entry_t entry = {host_addr - vaddr, paddr - vaddr};
-  tlb_data[idx] = entry;
+  if (type == FETCH) {
+    tlb_code[idx] = entry;
+  } else {
+    tlb_data[idx] = entry;
+  }
   return entry;
 }
 
-/* TODO: less dumb implementation */
 reg_t mmu_t::mpu_ok(reg_t addr, reg_t len, access_type type, reg_t mode)
 {
   struct state_t *s = &proc->state;

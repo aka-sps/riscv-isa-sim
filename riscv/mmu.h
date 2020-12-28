@@ -385,6 +385,7 @@ private:
   // trigger match before completing an access.
   static const reg_t TLB_CHECK_TRIGGERS = reg_t(1) << 63;
   tlb_entry_t tlb_data[TLB_ENTRIES];
+  tlb_entry_t tlb_code[TLB_ENTRIES];
   reg_t tlb_insn_tag[TLB_ENTRIES];
   reg_t tlb_load_tag[TLB_ENTRIES];
   reg_t tlb_store_tag[TLB_ENTRIES];
@@ -412,15 +413,15 @@ private:
   inline tlb_entry_t translate_insn_addr(reg_t addr) {
     reg_t vpn = addr >> PGSHIFT;
     if (likely(tlb_insn_tag[vpn % TLB_ENTRIES] == vpn))
-      return tlb_data[vpn % TLB_ENTRIES];
+      return tlb_code[vpn % TLB_ENTRIES];
     tlb_entry_t result;
     if (unlikely(tlb_insn_tag[vpn % TLB_ENTRIES] != (vpn | TLB_CHECK_TRIGGERS))) {
       result = fetch_slow_path(addr);
     } else {
-      result = tlb_data[vpn % TLB_ENTRIES];
+      result = tlb_code[vpn % TLB_ENTRIES];
     }
     if (unlikely(tlb_insn_tag[vpn % TLB_ENTRIES] == (vpn | TLB_CHECK_TRIGGERS))) {
-      target_endian<uint16_t>* ptr = (target_endian<uint16_t>*)(tlb_data[vpn % TLB_ENTRIES].host_offset + addr);
+      target_endian<uint16_t>* ptr = (target_endian<uint16_t>*)(tlb_code[vpn % TLB_ENTRIES].host_offset + addr);
       int match = proc->trigger_match(OPERATION_EXECUTE, addr, from_target(*ptr));
       if (match >= 0) {
         throw trigger_matched_t(match, OPERATION_EXECUTE, addr, from_target(*ptr));
