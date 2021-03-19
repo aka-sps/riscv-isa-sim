@@ -10,6 +10,7 @@ extern volatile bool ctrlc_pressed;
 
 /* XXX */
 extern reg_t exit_addr;
+extern bool dbg;
 
 #ifdef RISCV_ENABLE_COMMITLOG
 static void commit_log_reset(processor_t* p)
@@ -243,13 +244,14 @@ void processor_t::step(size_t n)
 
 /* not really a place for this? */
     #define advance_pc() \
-  if ((pc == exit_addr) && (exit_addr != 0)) {  \
+  if (unlikely(pc == exit_addr)) \
+    if ((exit_addr != 0) && dbg) {  \
     printf("exit status:"); \
     ctrlc_pressed = true; /* TODO: less dumb way to halt. This one does not work w/o -d. */ \
     for (i = 10; i < 15; i++) \
       printf("\t%lx", state.XPR[i]); \
     printf("\n"); \
-  } \
+    } \
      if (unlikely(invalid_pc(pc))) { \
        switch (pc) { \
          case PC_SERIALIZE_BEFORE: state.serialized = true; break; \
