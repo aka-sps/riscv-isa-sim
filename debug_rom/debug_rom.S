@@ -23,10 +23,7 @@ _entry:
         // This fence is required because the execution may have written something
         // into the Abstract Data or Program Buffer registers.
         fence
-        csrw CSR_DSCRATCH0, s0  // Save s0 to allow signaling MHARTID
-        li s0, (DEBUG_ROM_SCRATCH)
-        sw s1, 0(s0)
-        sw s2, 4(s0)
+        csrw CSR_DSCRATCH, s0  // Save s0 to allow signaling MHARTID
 
         // We continue to let the hart know that we are halted in order that
         // a DM which was reset is still made aware that a hart is halted.
@@ -34,17 +31,12 @@ _entry:
         // us to do, or whether we should resume.
 entry_loop:
         csrr s0, CSR_MHARTID
-        li s1, DEBUG_ROM_HALTED
-        sw   s0, 0(s1)
-        li s1, DEBUG_ROM_FLAGS
-        add s1, s0, s1
-        lbu  s0, 0(s1) // 1 byte flag per hart. Only one hart advances here.
+        sw   s0, DEBUG_ROM_HALTED(zero)
+        lbu  s0, DEBUG_ROM_FLAGS(s0) // 1 byte flag per hart. Only one hart advances here.
         andi s0, s0, (1 << DEBUG_ROM_FLAG_GO)
         bnez s0, going
         csrr s0, CSR_MHARTID
-        li s1, DEBUG_ROM_FLAGS
-        add s1, s0, s1
-        lbu  s0, 0(s1) // multiple harts can resume  here
+        lbu  s0, DEBUG_ROM_FLAGS(s0) // multiple harts can resume  here
         andi s0, s0, (1 << DEBUG_ROM_FLAG_RESUME)
         bnez s0, _resume
         wfi
@@ -54,37 +46,24 @@ _exception:
         // Restore S0, which we always save to dscratch.
         // We need this in case the user tried an abstract write to a
         // non-existent CSR.
-        li s0, (DEBUG_ROM_SCRATCH)
-        lw s1, 0(s0)
-        lw s2, 4(s0)
-        csrr    s0, CSR_DSCRATCH0
-        li s1, DEBUG_ROM_EXCEPTION
-        sw      zero, 0(s1) // Let debug module know you got an exception.
+        csrr    s0, CSR_DSCRATCH
+        sw      zero, DEBUG_ROM_EXCEPTION(zero) // Let debug module know you got an exception.
         ebreak
 
 going:
         csrr s0, CSR_MHARTID
-        li s1, DEBUG_ROM_GOING        
-        sw s0, 0(s1)     // When debug module sees this write, the GO flag is reset.
-        li s0, (DEBUG_ROM_SCRATCH)
-        lw s1, 0(s0)
-        lw s2, 4(s0)
-        csrr s0, CSR_DSCRATCH0            // Restore s0 here
+        sw s0, DEBUG_ROM_GOING(zero)     // When debug module sees this write, the GO flag is reset.
+        csrr s0, CSR_DSCRATCH            // Restore s0 here
         fence
         fence.i
-        jal zero, (whereto)
-//        jalr zero, zero, %lo(whereto)    // Debug module will put different instructions and data in the RAM, 
+        jalr zero, zero, %lo(whereto)    // Debug module will put different instructions and data in the RAM, 
                                          // so we use fence and fence.i for safety. (rocket-chip doesn't have this
                                          // because jalr is special there)
 
 _resume:
         csrr s0, CSR_MHARTID
-        li s1, DEBUG_ROM_RESUMING
-        sw   s0, 0(s1) // When Debug Module sees this write, the RESUME flag is reset.
-        li s0, (DEBUG_ROM_SCRATCH)
-        lw s1, 0(s0)
-        lw s2, 4(s0)
-        csrr s0, CSR_DSCRATCH0   // Restore s0
+        sw   s0, DEBUG_ROM_RESUMING(zero) // When Debug Module sees this write, the RESUME flag is reset.
+        csrr s0, CSR_DSCRATCH   // Restore s0
         dret
 
         // END OF ACTUAL "ROM" CONTENTS. BELOW IS JUST FOR LINKER SCRIPT.

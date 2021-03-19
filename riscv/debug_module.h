@@ -133,11 +133,10 @@ class debug_module_t : public abstract_device_t
     // Actual size of the program buffer, which is 1 word bigger than we let on
     // to implement the implicit ebreak at the end.
     unsigned program_buffer_bytes;
-    static const unsigned debug_data_start = 0x1380;
+    static const unsigned debug_data_start = 0x380;
     unsigned debug_progbuf_start;
 
-//    static const unsigned debug_abstract_size = 12;
-    static const unsigned debug_abstract_size = 24;
+    static const unsigned debug_abstract_size = 12;
     unsigned debug_abstract_start;
     // R/W this through custom registers, to allow debuggers to test that
     // functionality.
@@ -150,7 +149,6 @@ class debug_module_t : public abstract_device_t
     sim_t *sim;
 
     uint8_t debug_rom_whereto[4];
-    uint8_t debug_rom_scratch[8];
     uint8_t debug_abstract[debug_abstract_size * 4];
     uint8_t *program_buffer;
     uint8_t dmdata[datasize * 4];

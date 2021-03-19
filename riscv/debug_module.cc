@@ -50,10 +50,6 @@ debug_module_t::debug_module_t(sim_t *sim, const debug_module_config_t &config) 
   D(fprintf(stderr, "debug_progbuf_start=0x%x\n", debug_progbuf_start));
   D(fprintf(stderr, "debug_abstract_start=0x%x\n", debug_abstract_start));
 
-  fprintf(stderr, "debug_data_start=0x%x\n", debug_data_start);
-  fprintf(stderr, "debug_progbuf_start=0x%x\n", debug_progbuf_start);
-  fprintf(stderr, "debug_abstract_start=0x%x\n", debug_abstract_start);
-
   assert(nprocs <= 1024);
 
   program_buffer = new uint8_t[program_buffer_bytes];
@@ -129,16 +125,6 @@ bool debug_module_t::load(reg_t addr, size_t len, uint8_t* bytes)
 {
   addr = DEBUG_START + addr;
 
-  static int azaza;
-  if (addr >= DEBUG_ROM_SCRATCH &&
-      (addr + len) <= (DEBUG_ROM_SCRATCH + sizeof(debug_rom_scratch))) {
-    memcpy(bytes, debug_rom_scratch + addr - DEBUG_ROM_SCRATCH, len);
-    if (azaza++ < 30) {
-        printf("recall addr %ld\tsize %ld\tbytes %x\n", addr, len, *(uint32_t *)bytes);
-    }
-    return true;
-  }
-
   if (addr >= DEBUG_ROM_ENTRY &&
       (addr + len) <= (DEBUG_ROM_ENTRY + debug_rom_raw_len)) {
     memcpy(bytes, debug_rom_raw + addr - DEBUG_ROM_ENTRY, len);
@@ -200,17 +186,6 @@ bool debug_module_t::store(reg_t addr, size_t len, const uint8_t* bytes)
   }
 
   addr = DEBUG_START + addr;
-
-  static int azaza;
-
-  if (addr >= DEBUG_ROM_SCRATCH &&
-      (addr + len) <= (DEBUG_ROM_SCRATCH + sizeof(debug_rom_scratch))) {
-    memcpy(debug_rom_scratch + addr - DEBUG_ROM_SCRATCH, bytes, len);
-    if (azaza++ < 30) {
-        printf("remember addr %ld\tsize %ld\tbytes %x\n", addr, len, *(uint32_t *)bytes);
-    }
-    return true;
-  }
 
   if (addr >= debug_data_start && (addr + len) <= (debug_data_start + sizeof(dmdata))) {
     memcpy(dmdata + addr - debug_data_start, bytes, len);
@@ -615,15 +590,10 @@ bool debug_module_t::perform_abstract_command()
 
     unsigned i = 0;
     if (get_field(command, AC_ACCESS_REGISTER_TRANSFER)) {
+
       if (is_fpu_reg(regno)) {
         // Save S0
         write32(debug_abstract, i++, csrw(S0, CSR_DSCRATCH0));
-        // Save and set S1
-        write32(debug_abstract, i++, lui(S0, DEBUG_ROM_SCRATCH >> 12));
-        write32(debug_abstract, i++, addi(S0, S0, DEBUG_ROM_SCRATCH & 0xFFF));
-        write32(debug_abstract, i++, sw(S1, S0, 0));
-        write32(debug_abstract, i++, lui(S1, debug_data_start >> 12));
-        write32(debug_abstract, i++, addi(S1, S1, debug_data_start & 0xFFF));
         // Save mstatus
         write32(debug_abstract, i++, csrr(S0, CSR_MSTATUS));
         write32(debug_abstract, i++, csrw(S0, CSR_DSCRATCH1));
@@ -631,23 +601,20 @@ bool debug_module_t::perform_abstract_command()
         assert((MSTATUS_FS & 0xfff) == 0);
         write32(debug_abstract, i++, lui(S0, MSTATUS_FS >> 12));
         write32(debug_abstract, i++, csrrs(ZERO, S0, CSR_MSTATUS));
-      } else {
-        write32(debug_abstract, i++, csrw(S0, CSR_DSCRATCH0));
-        write32(debug_abstract, i++, lui(S0, DEBUG_ROM_SCRATCH >> 12));
-        write32(debug_abstract, i++, addi(S0, S0, DEBUG_ROM_SCRATCH & 0xFFF));
-        write32(debug_abstract, i++, sw(S1, S0, 0));
-        write32(debug_abstract, i++, lui(S1, debug_data_start >> 12));
-        write32(debug_abstract, i++, addi(S1, S1, debug_data_start & 0xFFF));
       }
 
       if (regno < 0x1000 && config.support_abstract_csr_access) {
+        if (!is_fpu_reg(regno)) {
+          write32(debug_abstract, i++, csrw(S0, CSR_DSCRATCH0));
+        }
+
         if (write) {
           switch (size) {
             case 2:
-              write32(debug_abstract, i++, lw(S0, S1, 0));
+              write32(debug_abstract, i++, lw(S0, ZERO, debug_data_start));
               break;
             case 3:
-              write32(debug_abstract, i++, ld(S0, S1, 0));
+              write32(debug_abstract, i++, ld(S0, ZERO, debug_data_start));
               break;
             default:
               abstractcs.cmderr = CMDERR_NOTSUP;
@@ -659,71 +626,51 @@ bool debug_module_t::perform_abstract_command()
           write32(debug_abstract, i++, csrr(S0, regno));
           switch (size) {
             case 2:
-              write32(debug_abstract, i++, ld(S0, S1, 0));
+              write32(debug_abstract, i++, sw(S0, ZERO, debug_data_start));
               break;
             case 3:
-              write32(debug_abstract, i++, ld(S0, S1, 0));
+              write32(debug_abstract, i++, sd(S0, ZERO, debug_data_start));
               break;
             default:
               abstractcs.cmderr = CMDERR_NOTSUP;
               return true;
           }
         }
+        if (!is_fpu_reg(regno)) {
+          write32(debug_abstract, i++, csrr(S0, CSR_DSCRATCH0));
+        }
+
       } else if (regno >= 0x1000 && regno < 0x1020) {
         unsigned regnum = regno - 0x1000;
 
-        if (regno == 0x1000 + S0 && !write)
-          write32(debug_abstract, i++, csrr(S0, CSR_DSCRATCH0));
-        if (regno == 0x1000 + S1 && !write) {
-          regnum = S0;
-          write32(debug_abstract, i++, lui(S0, DEBUG_ROM_SCRATCH >> 12));
-          write32(debug_abstract, i++, addi(S0, S0, DEBUG_ROM_SCRATCH & 0xFFF));
-          write32(debug_abstract, i++, lw(S0, S0, 0));
-        }
         switch (size) {
           case 2:
             if (write)
-              write32(debug_abstract, i++, lw(regnum, S1, 0));
+              write32(debug_abstract, i++, lw(regnum, ZERO, debug_data_start));
             else
-              write32(debug_abstract, i++, sw(regnum, S1, 0));
+              write32(debug_abstract, i++, sw(regnum, ZERO, debug_data_start));
             break;
           case 3:
             if (write)
-              write32(debug_abstract, i++, ld(regnum, S1, 0));
+              write32(debug_abstract, i++, ld(regnum, ZERO, debug_data_start));
             else
-              write32(debug_abstract, i++, sd(regnum, S1, 0));
+              write32(debug_abstract, i++, sd(regnum, ZERO, debug_data_start));
             break;
           default:
             abstractcs.cmderr = CMDERR_NOTSUP;
             return true;
         }
 
-        if (regno == 0x1000 + S0 && write) {
-          /*
-           * The exception handler starts out be restoring dscratch to s0,
-           * which was saved before executing the abstract memory region. Since
-           * we just wrote s0, also make sure to write that same value to
-           * dscratch in case an exception occurs in a program buffer that
-           * might be executed later.
-           */
-          write32(debug_abstract, i++, csrw(S0, CSR_DSCRATCH0));
-        }
-
-        if (regno == 0x1000 + S1 && write) {
-            write32(debug_abstract, i++, lui(S0, DEBUG_ROM_SCRATCH >> 12));
-            write32(debug_abstract, i++, addi(S0, S0, DEBUG_ROM_SCRATCH & 0xFFF));
-            write32(debug_abstract, i++, sw(S1, S0, 0));
-        }
       } else if (regno >= 0x1020 && regno < 0x1040) {
         unsigned fprnum = regno - 0x1020;
 
         if (write) {
           switch (size) {
             case 2:
-              write32(debug_abstract, i++, flw(fprnum, S1, 0));
+              write32(debug_abstract, i++, flw(fprnum, ZERO, debug_data_start));
               break;
             case 3:
-              write32(debug_abstract, i++, fld(fprnum, S1, 0));
+              write32(debug_abstract, i++, fld(fprnum, ZERO, debug_data_start));
               break;
             default:
               abstractcs.cmderr = CMDERR_NOTSUP;
@@ -733,10 +680,10 @@ bool debug_module_t::perform_abstract_command()
         } else {
           switch (size) {
             case 2:
-              write32(debug_abstract, i++, fsw(fprnum, S1, 0));
+              write32(debug_abstract, i++, fsw(fprnum, ZERO, debug_data_start));
               break;
             case 3:
-              write32(debug_abstract, i++, fsd(fprnum, S1, 0));
+              write32(debug_abstract, i++, fsd(fprnum, ZERO, debug_data_start));
               break;
             default:
               abstractcs.cmderr = CMDERR_NOTSUP;
@@ -764,19 +711,10 @@ bool debug_module_t::perform_abstract_command()
       }
 
       if (is_fpu_reg(regno)) {
-        //restore S1
-        write32(debug_abstract, i++, lui(S0, DEBUG_ROM_SCRATCH >> 12));
-        write32(debug_abstract, i++, addi(S0, S0, DEBUG_ROM_SCRATCH & 0xFFF));
-        write32(debug_abstract, i++, lw(S1, S0, 0));
         // restore mstatus
         write32(debug_abstract, i++, csrr(S0, CSR_DSCRATCH1));
         write32(debug_abstract, i++, csrw(S0, CSR_MSTATUS));
         // restore s0
-        write32(debug_abstract, i++, csrr(S0, CSR_DSCRATCH0));
-      } else {
-        write32(debug_abstract, i++, lui(S0, DEBUG_ROM_SCRATCH >> 12));
-        write32(debug_abstract, i++, addi(S0, S0, DEBUG_ROM_SCRATCH & 0xFFF));
-        write32(debug_abstract, i++, lw(S1, S0, 0));
         write32(debug_abstract, i++, csrr(S0, CSR_DSCRATCH0));
       }
     }
