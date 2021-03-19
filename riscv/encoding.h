@@ -208,7 +208,7 @@
 
 
 /*#define DEFAULT_RSTVEC      0xFFFFFFFFF0000000*/
-#define DEFAULT_RSTVEC     0x90001000
+#define DEFAULT_RSTVEC     0x00001000
 #define CLINT_BASE         0x02000000
 #define CLINT_SIZE         0x000c0000
 #define EXT_IO_BASE        0x40000000
