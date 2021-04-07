@@ -1287,6 +1287,7 @@ void processor_t::set_csr(int which, reg_t val)
       if (state.mpu_control[state.mpu_select] & MPU_LOCK)
         break;
       state.mpu_control[state.mpu_select] = val & ~((0x3F << 10) | (0x1FFF << 18));
+      printf("MPU_CONTROL %#x %#x\n", state.mpu_select, state.mpu_control[state.mpu_select]);
       break;
     case CSR_MPUADDRESS:
       if (state.mpu_control[state.mpu_select] & MPU_LOCK)
@@ -1294,7 +1295,7 @@ void processor_t::set_csr(int which, reg_t val)
       if (xlen == 32) {
         state.mpu_address[state.mpu_select] = val & ~(0x3FF | (3 << 30));
       } else if (xlen == 64) {
-        state.mpu_address[state.mpu_select] = val & ~(0x3FF | (0x3FFFFFF << 38));
+        state.mpu_address[state.mpu_select] = val & ~(0x3FF | (0x3FFFFFFULL << 38));
       } 
       break;
     case CSR_MPUMASK:
@@ -1303,7 +1304,7 @@ void processor_t::set_csr(int which, reg_t val)
       if (xlen == 32) {
         state.mpu_mask[state.mpu_select] = val & ~(0x3FF | (3 << 30));
       } else if (xlen == 64) {
-        state.mpu_mask[state.mpu_select] = val & ~(0x3FF | (0x3FFFFFF << 38));
+        state.mpu_mask[state.mpu_select] = val & ~(0x3FF | (0x3FFFFFFULL << 38));
       }
       break;
   }
@@ -1730,6 +1731,16 @@ reg_t processor_t::get_csr(int which, insn_t insn, bool write, bool peek)
       if (!supports_extension('V'))
         break;
       ret(VU.vlenb);
+    /*
+    case CSR_MMUTLBATTR:
+      ret(0);
+    case CSR_MMUTLBVA:
+      ret(0);
+    case CSR_MMUTLBUPDATE:
+      ret(0);
+    case CSR_MMUTLBSCAN:
+      ret(0);
+    */
     case CSR_MPUSELECT:
       ret(state.mpu_select);
     case CSR_MPUCONTROL:
@@ -1738,6 +1749,8 @@ reg_t processor_t::get_csr(int which, insn_t insn, bool write, bool peek)
       ret(state.mpu_address[state.mpu_select]);
     case CSR_MPUMASK:
       ret(state.mpu_mask[state.mpu_select]);
+    case CSR_MEMCTRLGLOBAL:
+      ret(0); //TODO: learn how ret works and implement 0xbd4 properly
   }
 
 #undef ret

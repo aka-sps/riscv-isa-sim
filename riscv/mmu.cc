@@ -222,8 +222,9 @@ tlb_entry_t mmu_t::refill_tlb(reg_t vaddr, reg_t paddr, char* host_addr, access_
   return entry;
 }
 
-reg_t mmu_t::mpu_ok(reg_t addr, reg_t len, access_type type, reg_t mode)
+reg_t mmu_t::mpu_ok(reg_t addr, reg_t len, access_type type, reg_t mode)//mpu_rwx_okk
 {
+  printf("MPU_OK(%#x, %u, %u, %u)\n", addr, len, type, mode);
   struct state_t *s = &proc->state;
   reg_t atc;
   int i;
@@ -231,19 +232,46 @@ reg_t mmu_t::mpu_ok(reg_t addr, reg_t len, access_type type, reg_t mode)
 
   for (i = 0; i < 16; i++) {
     gp = false;
+    printf("mpu_ctrl[%u]: %#x\n", i, s->mpu_control[i]);
+    printf("mpu_addr[%u]: %#x\n", i, s->mpu_address[i]>>10);
+    printf("mpu_mask[%u]: %#x\n", i, s->mpu_mask[i]);
     if (!(s->mpu_control[i] & MPU_VALID))
       continue;
+    reg_t phys_address = s->mpu_address[i]<<2;
+    reg_t phys_address_mask = s->mpu_mask[i]<<2;
+    printf("PHYS ADDR & MASK: %#x %#x\n", phys_address, phys_address_mask);
     for (atc = addr; atc < addr + len; atc++) {
-      if ((atc & s->mpu_mask[i]) == (s->mpu_address[i] & s->mpu_mask[i])) {
+      if ((atc & phys_address_mask) == (phys_address & phys_address_mask)) {
         switch (mode) {
         case PRV_M:
+          switch (type) {
+          case LOAD:
+            if ((s->mpu_control[i] & MPU_MMR) == 0) {
+              return false;
+            }
+            gp = true;
+            break;
+          case STORE:
+            if ((s->mpu_control[i] & MPU_MMW) == 0) {
+              return false;
+            }
+            gp = true;
+            break;
+          case FETCH:
+            if ((s->mpu_control[i] & MPU_MMX) == 0) {
+              return false;
+            }
+            gp = true;
+            break;
+          }
+          /*
           if (((type == LOAD) && (s->mpu_control[i] & MPU_MMR)) ||
               ((type == STORE) && (s->mpu_control[i] & MPU_MMW)) ||
               ((type == FETCH) && (s->mpu_control[i] & MPU_MMX))) {
             gp = true;
           } else {
             return false;
-          }
+          }*/
           break;
         case PRV_S:
           if (((type == LOAD) && (s->mpu_control[i] & MPU_SMR)) ||
@@ -269,7 +297,6 @@ reg_t mmu_t::mpu_ok(reg_t addr, reg_t len, access_type type, reg_t mode)
       }
     }
   }
-
   return ga;
 }
 
