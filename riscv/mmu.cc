@@ -40,11 +40,22 @@ void mmu_t::flush_tlb()
 
 static void throw_access_exception(reg_t addr, access_type type)
 {
+  printf("          !!!! throw_access_exception %u\n", type);
   switch (type) {
-    case FETCH: throw trap_instruction_access_fault(addr, 0, 0);
-    case LOAD: throw trap_load_access_fault(addr, 0, 0);
-    case STORE: throw trap_store_access_fault(addr, 0, 0);
-    default: abort();
+    case FETCH:
+      printf("          !!!! FETCH(2)\n");
+      throw trap_instruction_access_fault(addr, 0, 0);
+      break;
+    case LOAD:
+      printf("          !!!! LOAD(0)\n");
+      throw trap_load_access_fault(addr, 0, 0);
+      break;
+    case STORE:
+      printf("          !!!! STORE(1)\n");
+      throw trap_store_access_fault(addr, 0, 0);
+      break;
+    default:
+      abort();
   }
 }
 
@@ -222,9 +233,10 @@ tlb_entry_t mmu_t::refill_tlb(reg_t vaddr, reg_t paddr, char* host_addr, access_
   return entry;
 }
 
+static char* instr_type[] = {"L", "S", "F",};
+
 reg_t mmu_t::mpu_ok(reg_t addr, reg_t len, access_type type, reg_t mode)//mpu_rwx_okk
 {
-  printf("MPU_OK(%#x, %u, %u, %u)\n", addr, len, type, mode);
   struct state_t *s = &proc->state;
   reg_t atc;
   int i;
@@ -232,46 +244,24 @@ reg_t mmu_t::mpu_ok(reg_t addr, reg_t len, access_type type, reg_t mode)//mpu_rw
 
   for (i = 0; i < 16; i++) {
     gp = false;
-    printf("mpu_ctrl[%u]: %#x\n", i, s->mpu_control[i]);
-    printf("mpu_addr[%u]: %#x\n", i, s->mpu_address[i]>>10);
-    printf("mpu_mask[%u]: %#x\n", i, s->mpu_mask[i]);
     if (!(s->mpu_control[i] & MPU_VALID))
       continue;
     reg_t phys_address = s->mpu_address[i]<<2;
     reg_t phys_address_mask = s->mpu_mask[i]<<2;
-    printf("PHYS ADDR & MASK: %#x %#x\n", phys_address, phys_address_mask);
+    //if (i)
+      printf("          MPU ENTRY %u: PHYS ADDR, MASK, CTRL: %#x %#x %#x\n", i, phys_address, phys_address_mask, s->mpu_control[i]);
     for (atc = addr; atc < addr + len; atc++) {
       if ((atc & phys_address_mask) == (phys_address & phys_address_mask)) {
         switch (mode) {
         case PRV_M:
-          switch (type) {
-          case LOAD:
-            if ((s->mpu_control[i] & MPU_MMR) == 0) {
-              return false;
-            }
-            gp = true;
-            break;
-          case STORE:
-            if ((s->mpu_control[i] & MPU_MMW) == 0) {
-              return false;
-            }
-            gp = true;
-            break;
-          case FETCH:
-            if ((s->mpu_control[i] & MPU_MMX) == 0) {
-              return false;
-            }
-            gp = true;
-            break;
-          }
-          /*
           if (((type == LOAD) && (s->mpu_control[i] & MPU_MMR)) ||
               ((type == STORE) && (s->mpu_control[i] & MPU_MMW)) ||
               ((type == FETCH) && (s->mpu_control[i] & MPU_MMX))) {
             gp = true;
           } else {
+            printf("          ! MPU_OK(%#x, %u, %s, MACHINE) => %u at record %u\n", addr, len, instr_type[type], 0, i);
             return false;
-          }*/
+          }
           break;
         case PRV_S:
           if (((type == LOAD) && (s->mpu_control[i] & MPU_SMR)) ||
@@ -279,8 +269,9 @@ reg_t mmu_t::mpu_ok(reg_t addr, reg_t len, access_type type, reg_t mode)//mpu_rw
               ((type == FETCH) && (s->mpu_control[i] & MPU_SMX))) {
             gp = true;
           } else {
+            printf("          ! MPU_OK(%#x, %u, %s, SUPERVISOR) => %u at record %u\n", addr, len, instr_type[type], 0, i);
             return false;
-          }          
+          }
           break;
         case PRV_U:
           if (((type == LOAD) && (s->mpu_control[i] & MPU_UMR)) ||
@@ -288,6 +279,7 @@ reg_t mmu_t::mpu_ok(reg_t addr, reg_t len, access_type type, reg_t mode)//mpu_rw
               ((type == FETCH) && (s->mpu_control[i] & MPU_UMX))) {
             gp = true;
           } else {
+            printf("          ! MPU_OK(%#x, %u, %s, USER) => %u at record %u\n", addr, len, instr_type[type], 0, i);
             return false;
           }
           break;
@@ -297,6 +289,7 @@ reg_t mmu_t::mpu_ok(reg_t addr, reg_t len, access_type type, reg_t mode)//mpu_rw
       }
     }
   }
+  printf("          MPU_OK(%#x, %u, %s, %s) => %u\n", addr, len, instr_type[type], (mode == PRV_U ? "USER" : (mode == PRV_M ? "MACHINE" : "SUPERVISOR") ), ga);
   return ga;
 }
 

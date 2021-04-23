@@ -201,7 +201,7 @@ struct state_t
   reg_t vsatp;
 
   uint32_t mpu_select;
-  uint32_t mpu_control[16] = { (MPU_VALID | MPU_MMR | MPU_MMW | MPU_MMX | (3 << 16)) };//3<<16 - CPU configuration memory-mapped I/O, noncacheable, strong-ordered
+  uint32_t mpu_control[16] = { (MPU_VALID | MPU_MMR | MPU_MMW | MPU_MMX | MTYPE_MMIO_NC_SO) };
   reg_t mpu_address[16] = { };
   reg_t mpu_mask[16] = { };
 

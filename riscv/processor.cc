@@ -1279,32 +1279,49 @@ void processor_t::set_csr(int which, reg_t val)
       VU.vxrm = val & 0x3ul;
       break;
 
+    case CSR_MEMCTRLGLOBAL:
+      // 1 - icache en, 2 - dcache en, 4 - icache flush, 8 - dcache flush
+      //icache_enabled = val&1;
+      //dcache_enabled = (val&2) != 0;
+      if(val & 4)
+        //mmu->flush_icache();
+      if(val & 8){
+        //flush dcache
+      }
+      printf("          MEM_CTRL_GLOBAL %#x\n", val);
+      break;
+
 /* TODO: rm magic values */
     case CSR_MPUSELECT:
       state.mpu_select = val & 0xF;
+      printf("          MPU_SELECT %u\n", state.mpu_select);
       break;
     case CSR_MPUCONTROL:
       if (state.mpu_control[state.mpu_select] & MPU_LOCK)
         break;
-      state.mpu_control[state.mpu_select] = val & ~((0x3F << 10) | (0x1FFF << 18));
-      printf("MPU_CONTROL %#x %#x\n", state.mpu_select, state.mpu_control[state.mpu_select]);
+      if((val & MPU_MTYPE) == MTYPE_MMIO_NC_SO)
+        val &= ~(MPU_MMX | MPU_SMX | MPU_UMX); //per scr5 eas rv64 6.1.7
+      state.mpu_control[state.mpu_select] = val & MPU_CONTROL_MASK;
+      printf("          MPU_CONTROL %u %#x\n", state.mpu_select, state.mpu_control[state.mpu_select]);
       break;
     case CSR_MPUADDRESS:
       if (state.mpu_control[state.mpu_select] & MPU_LOCK)
         break;
       if (xlen == 32) {
-        state.mpu_address[state.mpu_select] = val & ~(0x3FF | (3 << 30));
+        state.mpu_address[state.mpu_select] = val & MPU_ADDR_MASK_32;
       } else if (xlen == 64) {
-        state.mpu_address[state.mpu_select] = val & ~(0x3FF | (0x3FFFFFFULL << 38));
+        state.mpu_address[state.mpu_select] = val & MPU_ADDR_MASK_64;
+        printf("          MPU_ADDRESS %u %#x\n", state.mpu_select, state.mpu_address[state.mpu_select]);
       } 
       break;
     case CSR_MPUMASK:
       if (state.mpu_control[state.mpu_select] & MPU_LOCK)
         break;
       if (xlen == 32) {
-        state.mpu_mask[state.mpu_select] = val & ~(0x3FF | (3 << 30));
+        state.mpu_mask[state.mpu_select] = val & MPU_ADDR_MASK_32;
       } else if (xlen == 64) {
-        state.mpu_mask[state.mpu_select] = val & ~(0x3FF | (0x3FFFFFFULL << 38));
+        state.mpu_mask[state.mpu_select] = val & MPU_ADDR_MASK_64;
+        printf("          MPU_MASK %u %#x\n", state.mpu_select, state.mpu_mask[state.mpu_select]);
       }
       break;
   }
