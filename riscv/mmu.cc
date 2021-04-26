@@ -94,9 +94,11 @@ tlb_entry_t mmu_t::fetch_slow_path(reg_t vaddr)
 {
   reg_t paddr = translate(vaddr, sizeof(fetch_temp), FETCH, 0);
 
-  if (auto host_addr = sim->addr_to_mem(paddr)) {
+  auto host_addr = sim->addr_to_mem(paddr);
+  if (host_addr/* && !mpu_mmio(paddr, sizeof(fetch_temp))*/) {
     return refill_tlb(vaddr, paddr, host_addr, FETCH);
   } else {
+    printf("          @@@@@ MMIO_LOAD\n");
     if (!mmio_load(paddr, sizeof fetch_temp, (uint8_t*)&fetch_temp))
       throw trap_instruction_access_fault(vaddr, 0, 0);
     tlb_entry_t entry = {(char*)&fetch_temp - vaddr, paddr - vaddr};
@@ -160,14 +162,19 @@ void mmu_t::load_slow_path(reg_t addr, reg_t len, uint8_t* bytes, uint32_t xlate
 {
   reg_t paddr = translate(addr, len, LOAD, xlate_flags);
 
-  if (auto host_addr = sim->addr_to_mem(paddr)) {
+  auto host_addr = sim->addr_to_mem(paddr);
+  if (host_addr && !mpu_mmio(paddr, len)) {
     memcpy(bytes, host_addr, len);
-    if (tracer.interested_in_range(paddr, paddr + PGSIZE, LOAD))
+    if (tracer.interested_in_range(paddr, paddr + PGSIZE, LOAD)) {
       tracer.trace(paddr, len, LOAD);
-    else
+    } else {
       refill_tlb(addr, paddr, host_addr, LOAD);
-  } else if (!mmio_load(paddr, len, bytes)) {
-    throw trap_load_access_fault(addr, 0, 0);
+    }
+  } else {
+    printf("          @@@@@ LOAD MMIO\n");
+    if (!mmio_load(paddr, len, bytes)) {
+      throw trap_load_access_fault(addr, 0, 0);
+    }
   }
 
   if (!matched_trigger) {
@@ -190,14 +197,19 @@ void mmu_t::store_slow_path(reg_t addr, reg_t len, const uint8_t* bytes, uint32_
       throw *matched_trigger;
   }
 
-  if (auto host_addr = sim->addr_to_mem(paddr)) {
+  auto host_addr = sim->addr_to_mem(paddr);
+  if (host_addr && !mpu_mmio(paddr, len)) {
     memcpy(host_addr, bytes, len);
-    if (tracer.interested_in_range(paddr, paddr + PGSIZE, STORE))
+    if (tracer.interested_in_range(paddr, paddr + PGSIZE, STORE)) {
       tracer.trace(paddr, len, STORE);
-    else
+    } else {
       refill_tlb(addr, paddr, host_addr, STORE);
-  } else if (!mmio_store(paddr, len, bytes)) {
-    throw trap_store_access_fault(addr, 0, 0);
+    }
+  } else {
+    printf("          @@@@@ STORE MMIO\n");
+    if (!mmio_store(paddr, len, bytes)) {
+      throw trap_store_access_fault(addr, 0, 0);
+    }
   }
 }
 
@@ -291,6 +303,29 @@ reg_t mmu_t::mpu_ok(reg_t addr, reg_t len, access_type type, reg_t mode)//mpu_rw
   }
   printf("          MPU_OK(%#x, %u, %s, %s) => %u\n", addr, len, instr_type[type], (mode == PRV_U ? "USER" : (mode == PRV_M ? "MACHINE" : "SUPERVISOR") ), ga);
   return ga;
+}
+
+bool mmu_t::mpu_mmio(reg_t addr, reg_t len){
+  if(!proc) return false;
+  struct state_t *s = &proc->state;
+  bool is_mmio_region = false;
+  for (int i = 0; i < 16; i++) {
+    if (!(s->mpu_control[i] & MPU_VALID))
+      continue;
+    reg_t phys_address = s->mpu_address[i]<<2;
+    reg_t phys_address_mask = s->mpu_mask[i]<<2;
+    if (((addr & phys_address_mask) == (phys_address & phys_address_mask)) ||
+        (((addr+len) & phys_address_mask) == (phys_address & phys_address_mask))) { //at least one end of a segment in range
+      if ((s->mpu_control[i] & MPU_MTYPE) == MTYPE_MMIO_NC_SO) {
+        printf("%u mtype region\n", i);
+        is_mmio_region = true;
+      }/* else {
+        printf("%u mtype fail\n", i);
+        return false;
+      }*/
+    }
+  }
+  return is_mmio_region;
 }
 
 reg_t mmu_t::pmp_ok(reg_t addr, reg_t len, access_type type, reg_t mode)
