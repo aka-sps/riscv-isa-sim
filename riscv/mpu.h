@@ -1,4 +1,19 @@
-/* privs */
+//
+
+#ifndef _RISCV_MPU_H
+#define _RISCV_MPU_H
+
+#include "decode.h"//FIXME: remove unneeded headers
+#include "trap.h"
+#include "common.h"
+#include "config.h"
+#include "simif.h"
+#include "processor.h"
+#include "memtracer.h"
+#include "byteorder.h"
+#include <stdlib.h>
+#include <vector>
+
 #define MPU_VALID 1
 #define MPU_MMR 2
 #define MPU_MMW 4
@@ -19,3 +34,34 @@
 #define MTYPE_NC_SO (1 << 16)
 #define MTYPE_NC_WO (2 << 16)
 #define MTYPE_MMIO_NC_SO (3 << 16)
+
+class mpu_t
+{
+public:
+  mpu_t(simif_t* sim, processor_t* proc, uint8_t entries);
+  ~mpu_t();
+  reg_t mpu_ok(reg_t addr, reg_t len, access_type type, reg_t mode);
+  bool mpu_mmio(reg_t addr, reg_t len);
+
+  void select(uint32_t);
+  void control(uint32_t);
+  void address(reg_t);
+  void mask(reg_t);
+
+  uint32_t select();
+  uint32_t control();
+  reg_t address();
+  reg_t mask();
+
+private:
+  simif_t* sim;
+  processor_t* proc;
+  uint8_t entries;
+
+  uint32_t _select;
+  uint32_t *_control;
+  reg_t *_address;
+  reg_t *_mask;
+};
+
+#endif //_RISCV_MPU_H

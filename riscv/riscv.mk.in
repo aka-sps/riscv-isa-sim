@@ -48,6 +48,7 @@ riscv_srcs = \
 	trap.cc \
 	cachesim.cc \
 	mmu.cc \
+	mpu.cc\
 	disasm.cc \
 	extension.cc \
 	extensions.cc \

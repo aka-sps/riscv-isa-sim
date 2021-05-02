@@ -37,6 +37,7 @@ processor_t::processor_t(const char* isa, const char* priv, const char* varch,
   parse_varch_string(varch);
 
   register_base_instructions();
+  mpu = new mpu_t(sim, this, 16); //FIXME: get a parameter
   mmu = new mmu_t(sim, this);
 
   disassembler = new disassembler_t(max_xlen);
@@ -1288,41 +1289,21 @@ void processor_t::set_csr(int which, reg_t val)
       if(val & 8){
         //flush dcache
       }
-      printf("          MEM_CTRL_GLOBAL %#x\n", val);
+      //printf("          MEM_CTRL_GLOBAL %#x\n", val);
       break;
 
 /* TODO: rm magic values */
     case CSR_MPUSELECT:
-      state.mpu_select = val & 0xF;
-      printf("          MPU_SELECT %u\n", state.mpu_select);
+      mpu->select(val);
       break;
     case CSR_MPUCONTROL:
-      if (state.mpu_control[state.mpu_select] & MPU_LOCK)
-        break;
-      if((val & MPU_MTYPE) == MTYPE_MMIO_NC_SO)
-        val &= ~(MPU_MMX | MPU_SMX | MPU_UMX); //per scr5 eas rv64 6.1.7
-      state.mpu_control[state.mpu_select] = val & MPU_CONTROL_MASK;
-      printf("          MPU_CONTROL %u %#x\n", state.mpu_select, state.mpu_control[state.mpu_select]);
+      mpu->control(val);
       break;
     case CSR_MPUADDRESS:
-      if (state.mpu_control[state.mpu_select] & MPU_LOCK)
-        break;
-      if (xlen == 32) {
-        state.mpu_address[state.mpu_select] = val & MPU_ADDR_MASK_32;
-      } else if (xlen == 64) {
-        state.mpu_address[state.mpu_select] = val & MPU_ADDR_MASK_64;
-        printf("          MPU_ADDRESS %u %#x\n", state.mpu_select, state.mpu_address[state.mpu_select]);
-      } 
+      mpu->address(val);
       break;
     case CSR_MPUMASK:
-      if (state.mpu_control[state.mpu_select] & MPU_LOCK)
-        break;
-      if (xlen == 32) {
-        state.mpu_mask[state.mpu_select] = val & MPU_ADDR_MASK_32;
-      } else if (xlen == 64) {
-        state.mpu_mask[state.mpu_select] = val & MPU_ADDR_MASK_64;
-        printf("          MPU_MASK %u %#x\n", state.mpu_select, state.mpu_mask[state.mpu_select]);
-      }
+      mpu->mask(val);
       break;
   }
 
@@ -1759,13 +1740,13 @@ reg_t processor_t::get_csr(int which, insn_t insn, bool write, bool peek)
       ret(0);
     */
     case CSR_MPUSELECT:
-      ret(state.mpu_select);
+      ret(mpu->select());
     case CSR_MPUCONTROL:
-      ret(state.mpu_control[state.mpu_select]);
+      ret(mpu->control());
     case CSR_MPUADDRESS:
-      ret(state.mpu_address[state.mpu_select]);
+      ret(mpu->address());
     case CSR_MPUMASK:
-      ret(state.mpu_mask[state.mpu_select]);
+      ret(mpu->mask());
     case CSR_MEMCTRLGLOBAL:
       ret(0); //TODO: learn how ret works and implement 0xbd4 properly
   }

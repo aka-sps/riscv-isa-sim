@@ -40,18 +40,18 @@ void mmu_t::flush_tlb()
 
 static void throw_access_exception(reg_t addr, access_type type)
 {
-  printf("          !!!! throw_access_exception %u\n", type);
+  //printf("          !!!! throw_access_exception %u\n", type);
   switch (type) {
     case FETCH:
-      printf("          !!!! FETCH(2)\n");
+      //printf("          !!!! FETCH(2)\n");
       throw trap_instruction_access_fault(addr, 0, 0);
       break;
     case LOAD:
-      printf("          !!!! LOAD(0)\n");
+      //printf("          !!!! LOAD(0)\n");
       throw trap_load_access_fault(addr, 0, 0);
       break;
     case STORE:
-      printf("          !!!! STORE(1)\n");
+      //printf("          !!!! STORE(1)\n");
       throw trap_store_access_fault(addr, 0, 0);
       break;
     default:
@@ -85,8 +85,8 @@ reg_t mmu_t::translate(reg_t addr, reg_t len, access_type type, uint32_t xlate_f
   reg_t paddr = walk(addr, type, mode, virt, mxr) | (addr & (PGSIZE-1));
   if (!pmp_ok(paddr, len, type, mode))
     throw_access_exception(addr, type);
-  if(!mpu_ok(paddr, len, type, mode))
-    throw_access_exception(addr, type);
+  //if(!proc->get_mpu()->mpu_ok(paddr, len, type, mode))
+  //  throw_access_exception(addr, type);
   return paddr;
 }
 
@@ -95,10 +95,10 @@ tlb_entry_t mmu_t::fetch_slow_path(reg_t vaddr)
   reg_t paddr = translate(vaddr, sizeof(fetch_temp), FETCH, 0);
 
   auto host_addr = sim->addr_to_mem(paddr);
-  if (host_addr/* && !mpu_mmio(paddr, sizeof(fetch_temp))*/) {
+  if (host_addr/* && !proc->get_mpu()->mpu_mmio(paddr, sizeof(fetch_temp))*/) {
     return refill_tlb(vaddr, paddr, host_addr, FETCH);
   } else {
-    printf("          @@@@@ MMIO_LOAD\n");
+    //printf("          @@@@@ MMIO_LOAD\n");
     if (!mmio_load(paddr, sizeof fetch_temp, (uint8_t*)&fetch_temp))
       throw trap_instruction_access_fault(vaddr, 0, 0);
     tlb_entry_t entry = {(char*)&fetch_temp - vaddr, paddr - vaddr};
@@ -163,7 +163,7 @@ void mmu_t::load_slow_path(reg_t addr, reg_t len, uint8_t* bytes, uint32_t xlate
   reg_t paddr = translate(addr, len, LOAD, xlate_flags);
 
   auto host_addr = sim->addr_to_mem(paddr);
-  if (host_addr && !mpu_mmio(paddr, len)) {
+  if (host_addr && !proc->get_mpu()->mpu_mmio(paddr, len)) {
     memcpy(bytes, host_addr, len);
     if (tracer.interested_in_range(paddr, paddr + PGSIZE, LOAD)) {
       tracer.trace(paddr, len, LOAD);
@@ -171,7 +171,7 @@ void mmu_t::load_slow_path(reg_t addr, reg_t len, uint8_t* bytes, uint32_t xlate
       refill_tlb(addr, paddr, host_addr, LOAD);
     }
   } else {
-    printf("          @@@@@ LOAD MMIO\n");
+    //printf("          @@@@@ LOAD MMIO\n");
     if (!mmio_load(paddr, len, bytes)) {
       throw trap_load_access_fault(addr, 0, 0);
     }
@@ -198,7 +198,7 @@ void mmu_t::store_slow_path(reg_t addr, reg_t len, const uint8_t* bytes, uint32_
   }
 
   auto host_addr = sim->addr_to_mem(paddr);
-  if (host_addr && !mpu_mmio(paddr, len)) {
+  if (host_addr && !proc->get_mpu()->mpu_mmio(paddr, len)) {
     memcpy(host_addr, bytes, len);
     if (tracer.interested_in_range(paddr, paddr + PGSIZE, STORE)) {
       tracer.trace(paddr, len, STORE);
@@ -206,7 +206,7 @@ void mmu_t::store_slow_path(reg_t addr, reg_t len, const uint8_t* bytes, uint32_
       refill_tlb(addr, paddr, host_addr, STORE);
     }
   } else {
-    printf("          @@@@@ STORE MMIO\n");
+    //printf("          @@@@@ STORE MMIO\n");
     if (!mmio_store(paddr, len, bytes)) {
       throw trap_store_access_fault(addr, 0, 0);
     }
@@ -243,89 +243,6 @@ tlb_entry_t mmu_t::refill_tlb(reg_t vaddr, reg_t paddr, char* host_addr, access_
     tlb_data[idx] = entry;
   }
   return entry;
-}
-
-static char* instr_type[] = {"L", "S", "F",};
-
-reg_t mmu_t::mpu_ok(reg_t addr, reg_t len, access_type type, reg_t mode)//mpu_rwx_okk
-{
-  struct state_t *s = &proc->state;
-  reg_t atc;
-  int i;
-  bool gp, ga = true;
-
-  for (i = 0; i < 16; i++) {
-    gp = false;
-    if (!(s->mpu_control[i] & MPU_VALID))
-      continue;
-    reg_t phys_address = s->mpu_address[i]<<2;
-    reg_t phys_address_mask = s->mpu_mask[i]<<2;
-    //if (i)
-      printf("          MPU ENTRY %u: PHYS ADDR, MASK, CTRL: %#x %#x %#x\n", i, phys_address, phys_address_mask, s->mpu_control[i]);
-    for (atc = addr; atc < addr + len; atc++) {
-      if ((atc & phys_address_mask) == (phys_address & phys_address_mask)) {
-        switch (mode) {
-        case PRV_M:
-          if (((type == LOAD) && (s->mpu_control[i] & MPU_MMR)) ||
-              ((type == STORE) && (s->mpu_control[i] & MPU_MMW)) ||
-              ((type == FETCH) && (s->mpu_control[i] & MPU_MMX))) {
-            gp = true;
-          } else {
-            printf("          ! MPU_OK(%#x, %u, %s, MACHINE) => %u at record %u\n", addr, len, instr_type[type], 0, i);
-            return false;
-          }
-          break;
-        case PRV_S:
-          if (((type == LOAD) && (s->mpu_control[i] & MPU_SMR)) ||
-              ((type == STORE) && (s->mpu_control[i] & MPU_SMW)) ||
-              ((type == FETCH) && (s->mpu_control[i] & MPU_SMX))) {
-            gp = true;
-          } else {
-            printf("          ! MPU_OK(%#x, %u, %s, SUPERVISOR) => %u at record %u\n", addr, len, instr_type[type], 0, i);
-            return false;
-          }
-          break;
-        case PRV_U:
-          if (((type == LOAD) && (s->mpu_control[i] & MPU_UMR)) ||
-              ((type == STORE) && (s->mpu_control[i] & MPU_UMW)) ||
-              ((type == FETCH) && (s->mpu_control[i] & MPU_UMX))) {
-            gp = true;
-          } else {
-            printf("          ! MPU_OK(%#x, %u, %s, USER) => %u at record %u\n", addr, len, instr_type[type], 0, i);
-            return false;
-          }
-          break;
-        }
-      if (gp == false)
-        ga = false;
-      }
-    }
-  }
-  printf("          MPU_OK(%#x, %u, %s, %s) => %u\n", addr, len, instr_type[type], (mode == PRV_U ? "USER" : (mode == PRV_M ? "MACHINE" : "SUPERVISOR") ), ga);
-  return ga;
-}
-
-bool mmu_t::mpu_mmio(reg_t addr, reg_t len){
-  if(!proc) return false;
-  struct state_t *s = &proc->state;
-  bool is_mmio_region = false;
-  for (int i = 0; i < 16; i++) {
-    if (!(s->mpu_control[i] & MPU_VALID))
-      continue;
-    reg_t phys_address = s->mpu_address[i]<<2;
-    reg_t phys_address_mask = s->mpu_mask[i]<<2;
-    if (((addr & phys_address_mask) == (phys_address & phys_address_mask)) ||
-        (((addr+len) & phys_address_mask) == (phys_address & phys_address_mask))) { //at least one end of a segment in range
-      if ((s->mpu_control[i] & MPU_MTYPE) == MTYPE_MMIO_NC_SO) {
-        printf("%u mtype region\n", i);
-        is_mmio_region = true;
-      }/* else {
-        printf("%u mtype fail\n", i);
-        return false;
-      }*/
-    }
-  }
-  return is_mmio_region;
 }
 
 reg_t mmu_t::pmp_ok(reg_t addr, reg_t len, access_type type, reg_t mode)
@@ -433,9 +350,8 @@ reg_t mmu_t::s2xlate(reg_t gva, reg_t gpa, access_type type, access_type trap_ty
     // check that physical address of PTE is legal
     auto pte_paddr = base + idx * vm.ptesize;
     auto ppte = sim->addr_to_mem(pte_paddr);
-    if (!ppte || !pmp_ok(pte_paddr, vm.ptesize, LOAD, PRV_S) || !mpu_ok(pte_paddr, vm.ptesize, LOAD, PRV_S)) {
+    if (!ppte || !pmp_ok(pte_paddr, vm.ptesize, LOAD, PRV_S))// || !proc->get_mpu()->mpu_ok(pte_paddr, vm.ptesize, LOAD, PRV_S))
       throw_access_exception(gva, trap_type);
-    }
 
     reg_t pte = vm.ptesize == 4 ? from_target(*(target_endian<uint32_t>*)ppte) : from_target(*(target_endian<uint64_t>*)ppte);
     reg_t ppn = pte >> PTE_PPN_SHIFT;
@@ -457,7 +373,7 @@ reg_t mmu_t::s2xlate(reg_t gva, reg_t gpa, access_type type, access_type trap_ty
 #ifdef RISCV_ENABLE_DIRTY
       // set accessed and possibly dirty bits.
       if ((pte & ad) != ad) {
-        if (!pmp_ok(pte_paddr, vm.ptesize, STORE, PRV_S) || !mpu_ok(pte_paddr, vm.ptesize, STORE, PRV_S))
+        if (!pmp_ok(pte_paddr, vm.ptesize, STORE, PRV_S))// || !proc->get_mpu()->mpu_ok(pte_paddr, vm.ptesize, STORE, PRV_S))
           throw_access_exception(gva, trap_type);
         *(target_endian<uint32_t>*)ppte |= to_target((uint32_t)ad);
       }
@@ -507,7 +423,7 @@ reg_t mmu_t::walk(reg_t addr, access_type type, reg_t mode, bool virt, bool mxr)
     // check that physical address of PTE is legal
     auto pte_paddr = s2xlate(addr, base + idx * vm.ptesize, LOAD, type, virt, false);
     auto ppte = sim->addr_to_mem(pte_paddr);
-    if (!ppte || !pmp_ok(pte_paddr, vm.ptesize, LOAD, PRV_S) || !mpu_ok(pte_paddr, vm.ptesize, LOAD, PRV_S))
+    if (!ppte || !pmp_ok(pte_paddr, vm.ptesize, LOAD, PRV_S))// || !proc->get_mpu()->mpu_ok(pte_paddr, vm.ptesize, LOAD, PRV_S))
       throw_access_exception(addr, type);
 
     reg_t pte = vm.ptesize == 4 ? from_target(*(target_endian<uint32_t>*)ppte) : from_target(*(target_endian<uint64_t>*)ppte);
@@ -530,7 +446,7 @@ reg_t mmu_t::walk(reg_t addr, access_type type, reg_t mode, bool virt, bool mxr)
 #ifdef RISCV_ENABLE_DIRTY
       // set accessed and possibly dirty bits.
       if ((pte & ad) != ad) {
-        if (!pmp_ok(pte_paddr, vm.ptesize, STORE, PRV_S) || !mpu_ok(pte_paddr, vm.ptesize, STORE, PRV_S))
+        if (!pmp_ok(pte_paddr, vm.ptesize, STORE, PRV_S) )//|| !proc->get_mpu()->mpu_ok(pte_paddr, vm.ptesize, STORE, PRV_S))
           throw_access_exception(addr, type);
         *(target_endian<uint32_t>*)ppte |= to_target((uint32_t)ad);
       }
