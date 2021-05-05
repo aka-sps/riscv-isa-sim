@@ -86,6 +86,44 @@ typedef struct
   bool load;
 } mcontrol_t;
 
+typedef struct       // structure for CSR_MMUTLBATTR - 64 bits register
+{
+  bool v;             //  valid bit
+  bool r;             //  read bit
+  bool w;             //  write bit
+  bool x;             //  execute bit
+  bool u;             //  user mode bit
+  bool g;             //  global mode bit
+  bool a;             //  access bit
+  bool d;             //  dirty bit
+  uint8_t ps;         //  page size bits: 00 - 4 KiB, 01 - 2MiB, 10 - 1 GiB pages
+  uint64_t ppn;       //  phisycal page number
+  uint8_t ppn_bits;   //  lenght of ppn in bits ??
+} mmuattr_t;
+
+typedef struct 
+{
+  uint16_t asid;      //  asid for current 
+  bool so;            //  strong ordering attribute
+  bool nc;            //  non-cache attribute
+  uint64_t vpn;       //  virtual page number
+} mmuva_t;
+
+typedef struct 
+{
+  bool dtlb; // data table bit
+  bool itlb; // instruction table bit
+  uint8_t upd_ps; // page size to update
+} mmuupd_t;
+
+typedef struct 
+{
+  uint8_t index;  //index entry in tlb
+  bool sel;       //selects TLB: 0 - TLB for instruction memory; 1 - TLB for data memory;
+} mmuscan_t;
+
+
+
 enum VRM{
   RNU = 0,
   RNE,
@@ -204,6 +242,11 @@ struct state_t
   uint32_t mpu_control[16] = { (MPU_VALID | MPU_MMR | MPU_MMW | MPU_MMX | (3 << 16)) };
   reg_t mpu_address[16] = { };
   reg_t mpu_mask[16] = { };
+
+  mmuattr_t mmu_attr;
+  mmuva_t mmu_vaddr;
+  mmuupd_t mmu_tlb_update;
+  mmuscan_t mmu_tlb_scan;
 
   reg_t dpc;
   reg_t dscratch0, dscratch1;
@@ -327,7 +370,7 @@ public:
 
   void register_insn(insn_desc_t);
   void register_extension(extension_t*);
-
+  
   // MMIO slave interface
   bool load(reg_t addr, size_t len, uint8_t* bytes);
   bool store(reg_t addr, size_t len, const uint8_t* bytes);

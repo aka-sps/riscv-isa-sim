@@ -3,7 +3,7 @@
 #include "mmu.h"
 #include "mpu.h"
 #include "simif.h"
-#include "processor.h"
+// #include "processor.h"
 
 mmu_t::mmu_t(simif_t* sim, processor_t* proc)
  : sim(sim), proc(proc),
@@ -15,6 +15,7 @@ mmu_t::mmu_t(simif_t* sim, processor_t* proc)
   check_triggers_store(false),
   matched_trigger(NULL)
 {
+  printf("Create MMU class, then flush all tbl \n");
   flush_tlb();
   yield_load_reservation();
 }
@@ -25,6 +26,7 @@ mmu_t::~mmu_t()
 
 void mmu_t::flush_icache()
 {
+  printf("FLUSH ICACHE\n");
   for (size_t i = 0; i < ICACHE_ENTRIES; i++)
     icache[i].tag = -1;
 }
@@ -40,11 +42,23 @@ void mmu_t::flush_tlb()
 
 static void throw_access_exception(reg_t addr, access_type type)
 {
+  printf("          !!!! throw_access_exception");
+  printf("addr = %#x, type %#x \n", &addr, &type);
   switch (type) {
-    case FETCH: throw trap_instruction_access_fault(addr, 0, 0);
-    case LOAD: throw trap_load_access_fault(addr, 0, 0);
-    case STORE: throw trap_store_access_fault(addr, 0, 0);
-    default: abort();
+    case FETCH:
+      printf("          !!!! FETCH(2)\n");
+      throw trap_instruction_access_fault(addr, 0, 0);
+      break;
+    case LOAD:
+      printf("          !!!! LOAD(0)\n");
+      throw trap_load_access_fault(addr, 0, 0);
+      break;
+    case STORE:
+      printf("          !!!! STORE(1)\n");
+      throw trap_store_access_fault(addr, 0, 0);
+      break;
+    default:
+      abort();
   }
 }
 
@@ -54,6 +68,8 @@ reg_t mmu_t::translate(reg_t addr, reg_t len, access_type type, uint32_t xlate_f
     return addr;
 
   bool mxr = get_field(proc->state.mstatus, MSTATUS_MXR);
+  printf("TRANSLATE: addr = %#x , len %#x , type %#x , xlate_flags %#x \n", addr, len, type, xlate_flags);
+  printf("mxr = %b \n", mxr);
   bool virt = proc->state.v;
   reg_t mode = proc->state.prv;
   if (type != FETCH) {
@@ -186,6 +202,7 @@ void mmu_t::store_slow_path(reg_t addr, reg_t len, const uint8_t* bytes, uint32_
     else
       refill_tlb(addr, paddr, host_addr, STORE);
   } else if (!mmio_store(paddr, len, bytes)) {
+    printf ("Droped in slow path\n");
     throw trap_store_access_fault(addr, 0, 0);
   }
 }
@@ -224,6 +241,7 @@ tlb_entry_t mmu_t::refill_tlb(reg_t vaddr, reg_t paddr, char* host_addr, access_
 
 reg_t mmu_t::mpu_ok(reg_t addr, reg_t len, access_type type, reg_t mode)
 {
+  return true;
   struct state_t *s = &proc->state;
   reg_t atc;
   int i;

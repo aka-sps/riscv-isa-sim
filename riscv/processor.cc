@@ -1306,6 +1306,48 @@ void processor_t::set_csr(int which, reg_t val)
         state.mpu_mask[state.mpu_select] = val & ~(0x3FF | (0x3FFFFFF << 38));
       }
       break;
+
+    // set MMU CSR values
+    case CSR_MMUTLBATTR:
+      state.mmu_attr.v   = get_field(val, MMU_ATTR_V);
+      printf("VALID bit of MMU_TLB_ATTR reg : %b", state.mmu_attr.v);
+      state.mmu_attr.r   = get_field(val, MMU_ATTR_R);
+      printf("READ bit of MMU_TLB_ATTR reg : %b", state.mmu_attr.r);
+      state.mmu_attr.w   = get_field(val, MMU_ATTR_W);
+      printf("WRITE bit of MMU_TLB_ATTR reg : %b", state.mmu_attr.w);
+      state.mmu_attr.x   = get_field(val, MMU_ATTR_X);
+      printf("WRITE bit of MMU_TLB_ATTR reg : %b", state.mmu_attr.x);
+      state.mmu_attr.u   = get_field(val, MMU_ATTR_G);
+      state.mmu_attr.g   = get_field(val, MMU_ATTR_U);
+      state.mmu_attr.a   = get_field(val, MMU_ATTR_A);
+      state.mmu_attr.d   = get_field(val, MMU_ATTR_D);
+      state.mmu_attr.ps  = get_field(val, MMU_ATTR_PS);              // shift for 8 bit and get 2 bits for ps
+      printf("PS bits of MMU_TLB_ATTR reg : %", state.mmu_attr.ps);
+      state.mmu_attr.ppn = ((state.mmu_attr.ps == 0) ? (get_field(val, MMU_ATTR_PPN_4KB)) :     //used 4KiB page: get 44 bits
+                           ((state.mmu_attr.ps == 1) ? (get_field(val, MMU_ATTR_PPN_2MB)) :     //used 2MiB page: get 35 bits
+                            (get_field(val, MMU_ATTR_PPN_1GB))));                               //used 1Gib page: get 26 bits
+      break;
+
+    case CSR_MMUTLBVA:
+      state.mmu_vaddr.asid  = get_field(val, 0x1FF);
+      state.mmu_vaddr.so    = get_field(val, 0x200);
+      state.mmu_vaddr.nc    = get_field(val, 0x400);
+      state.mmu_vaddr.vpn   = ((state.mmu_attr.ps == 0) ? (get_field(val, MMU_VA_VPN_4KB)) : //used 4KiB page: get 28 bits VPN
+                              ((state.mmu_attr.ps == 1) ? (get_field(val, MMU_VA_VPN_2MB)) : //used 2MiB page: get 18 bits VPN
+                              (get_field(val, MMU_VA_VPN_1GB))));                            //used 1Gib page: get 9 bits VPN
+      break;
+
+    case CSR_MMUTLBUPDATE:
+      state.mmu_tlb_update.itlb    =  get_field(val, 0x1);
+      state.mmu_tlb_update.dtlb    =  get_field(val, 0x2);
+      state.mmu_tlb_update.upd_ps  =  get_field(val, 0xC);
+      break;
+
+    case CSR_MMUTLBSCAN:
+      state.mmu_tlb_scan.index     = get_field(val, 0x1F);
+      state.mmu_tlb_scan.sel       = get_field(val >> 31, 0x1);
+      break;
+  
   }
 
 #if defined(RISCV_ENABLE_COMMITLOG)
@@ -1738,6 +1780,38 @@ reg_t processor_t::get_csr(int which, insn_t insn, bool write, bool peek)
       ret(state.mpu_address[state.mpu_select]);
     case CSR_MPUMASK:
       ret(state.mpu_mask[state.mpu_select]);
+    case CSR_MMUTLBATTR:
+    {
+      reg_t v = 0;
+      v = set_field(v, 0x1, state.mmu_attr.v);
+      v = set_field(v, 0x2, state.mmu_attr.r);
+      v = set_field(v, 0x4, state.mmu_attr.w);
+      v = set_field(v, 0x8, state.mmu_attr.x);
+      v = set_field(v, 0x10, state.mmu_attr.u);
+      v = set_field(v, 0x20, state.mmu_attr.g);
+      v = set_field(v, 0x40, state.mmu_attr.a);
+      v = set_field(v, 0x80, state.mmu_attr.d);
+      v = set_field(v, 0x180, state.mmu_attr.ps);
+      v = (state.mmu_attr.ps == 0) ? set_field(v, MMU_ATTR_PPN_4KB, state.mmu_attr.ppn) : 
+          ((state.mmu_attr.ps = 1) ? set_field(v, MMU_ATTR_PPN_2MB, state.mmu_attr.ppn) :
+          set_field(v, MMU_ATTR_PPN_1GB, state.mmu_attr.ppn));
+      ret(v); 
+    }     
+    case CSR_MMUTLBVA:
+    {
+      reg_t v = 0;
+      v = set_field(v, 0x1FF, state.mmu_vaddr.asid);
+      v = set_field(v, 0x200, state.mmu_vaddr.so);
+      v = set_field(v, 0x400, state.mmu_vaddr.nc);
+      v = (state.mmu_attr.ps == 0) ? set_field(v, MMU_VA_VPN_4KB, state.mmu_vaddr.vpn) :   //used 4KiB page: get 44 bits
+          (state.mmu_attr.ps == 1) ? set_field(v, MMU_VA_VPN_2MB, state.mmu_vaddr.vpn) :   //used 2MiB page: get 35 bits
+          set_field(v, MMU_VA_VPN_1GB, state.mmu_vaddr.vpn);                               //used 1Gib page: get 26 bits
+      ret(v);
+    }
+    case CSR_MMUTLBUPDATE:
+     ret(state.mmu_tlb_update.dtlb);
+    case CSR_MMUTLBSCAN:
+     ret(state.mmu_tlb_scan.index);
   }
 
 #undef ret

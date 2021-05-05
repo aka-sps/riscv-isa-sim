@@ -18,7 +18,26 @@
 #define PGSHIFT 12
 const reg_t PGSIZE = 1 << PGSHIFT;
 const reg_t PGMASK = ~(PGSIZE-1);
-#define MAX_PADDR_BITS 56 // imposed by Sv39 / Sv48
+#define MAX_PADDR_BITS 44 // SCR5_x64 uses SV39
+
+/* SCR5 EAS */
+// SCR_MMU_TLBATTR reg masks
+#define MMU_ATTR_V 0x1     //                                      MMU_TLBATTR Register
+#define MMU_ATTR_R 0x2     //    |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||                          
+#define MMU_ATTR_W 0x4     //    ||  RSV   ||      PPN     ||   RSV     ||  PS  || D || A || G || U || X || W || R || V ||                        
+#define MMU_ATTR_X 0x8     //    ||=====================================================================================||
+#define MMU_ATTR_U 0x10    //    || 63..54 || 53..28/19/10 || 27/18..10 || 9..8 || 7 || 6 || 5 || 4 || 3 || 2 || 1 || 0 ||    
+#define MMU_ATTR_G 0x20    //    |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+#define MMU_ATTR_A 0x40
+#define MMU_ATTR_D 0x80
+#define MMU_ATTR_PS 0x300
+#define MMU_ATTR_PPN_4KB 0x00FFFFFFFFFFFC00 // mask for 4kib page
+#define MMU_ATTR_PPN_2MB 0x00FFFFFFFFFC0000 // mask for 2mib page 
+#define MMU_ATTR_PPN_1GB 0x00FFFFFFF8000000 // mask for 1gib page
+#define MMU_VA_VPN_4KB   0x7FFFFFF000       // mask for 4kib vp 
+#define MMU_VA_VPN_2MB   0x7FFFE00000       // mask for 2mib vp 
+#define MMU_VA_VPN_1GB   0x7FC0000000       // mask for 1gib vp 
+
 
 struct insn_fetch_t
 {
@@ -245,6 +264,7 @@ public:
   inline void yield_load_reservation()
   {
     load_reservation_address = (reg_t)-1;
+    printf("load_reservation_address = %#x \n", load_reservation_address);
   }
 
   inline void acquire_load_reservation(reg_t vaddr)
@@ -380,9 +400,26 @@ private:
   icache_entry_t icache[ICACHE_ENTRIES];
 
   // implement a TLB for simulator performance
-  static const reg_t TLB_ENTRIES = 256;
+  static const reg_t TLBI_ENTRIES = 64;// SCR TLBI have 64 PTEs
+  static const reg_t TLBD_ENTRIES = 64;// SCR TLBD have 64 PTEs
+
+  static const reg_t TLB_ENTRIES = 256;//default in spike 256
+
   // If a TLB tag has TLB_CHECK_TRIGGERS set, then the MMU must check for a
   // trigger match before completing an access.
+  // tlb_entry_t tlbd_data[TLBD_ENTRIES];
+  // tlb_entry_t tlbd_code[TLBD_ENTRIES];
+  // reg_t tlbd_insn_tag[TLBD_ENTRIES];
+  // reg_t tlbd_load_tag[TLBD_ENTRIES];
+  // reg_t tlbd_store_tag[TLBD_ENTRIES];
+
+  // tlb_entry_t tlbi_data[TLBI_ENTRIES];
+  // tlb_entry_t tlbi_code[TLBI_ENTRIES];
+  // reg_t tlbi_insn_tag[TLBI_ENTRIES];
+  // reg_t tlbi_load_tag[TLBI_ENTRIES];
+  // reg_t tlbi_store_tag[TLBI_ENTRIES];
+
+
   static const reg_t TLB_CHECK_TRIGGERS = reg_t(1) << 63;
   tlb_entry_t tlb_data[TLB_ENTRIES];
   tlb_entry_t tlb_code[TLB_ENTRIES];
@@ -391,8 +428,16 @@ private:
   reg_t tlb_store_tag[TLB_ENTRIES];
 
   // finish translation on a TLB miss and update the TLB
-  tlb_entry_t refill_tlb(reg_t vaddr, reg_t paddr, char* host_addr, access_type type);
-  const char* fill_from_mmio(reg_t vaddr, reg_t paddr);
+
+  // tlb_entry_t refill_tlbi(reg_t vaddr, reg_t paddr, char* host_addr, access_type type);// SCR TLBI refill function
+  // tlb_entry_t refill_tlbd(reg_t vaddr, reg_t paddr, char* host_addr, access_type type);// SCR TLBD refill function
+
+  tlb_entry_t refill_tlb(reg_t vaddr, reg_t paddr, char* host_addr, access_type type); //default function
+
+  // const char* fill_tlbi_from_mmio(reg_t vaddr, reg_t paddr); //???
+  // const char* fill_tlbd_from_mmio(reg_t vaddr, reg_t paddr); //???
+
+  const char* fill_from_mmio(reg_t vaddr, reg_t paddr); //default function
 
   // perform a stage2 translation for a given guest address
   reg_t s2xlate(reg_t gva, reg_t gpa, access_type type, access_type trap_type, bool virt, bool mxr);
