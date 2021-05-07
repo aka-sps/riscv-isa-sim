@@ -270,7 +270,7 @@ class processor_t : public abstract_device_t
 public:
   processor_t(const char* isa, const char* priv, const char* varch,
               simif_t* sim, uint32_t id, bool halt_on_reset,
-              FILE *log_file);
+              FILE *log_file, reg_t mpu_entries);
   ~processor_t();
 
   void set_debug(bool value);
