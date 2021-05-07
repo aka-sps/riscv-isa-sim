@@ -75,16 +75,24 @@ reg_t mpu_t::mask()
   return _mask[_select];
 }
 
-#define MPU_DBG_PRINTOUT 0
+#define MPU_DBG_PRINTOUT 1
 
 #if MPU_DBG_PRINTOUT
   static char* instr_type[] = {"L", "S", "F",};
+  static char* instr_mode[] = {"USER", "SUPERVISOR", "ERROR", "MACHINE"};
 #endif
 reg_t mpu_t::mpu_ok(reg_t addr, reg_t len, access_type type, reg_t mode)
 {
   reg_t atc;
   int i;
   bool gp, ga = true;
+
+  const static uint32_t control_bit[][3] = {
+    {MPU_UMR, MPU_UMW, MPU_UMX},
+    {MPU_SMR, MPU_SMW, MPU_SMX},
+    {0,0,0},
+    {MPU_MMR, MPU_MMW, MPU_MMX}
+  };
 
   for (i = 0; i < entries; i++) {
     gp = false;
@@ -94,47 +102,17 @@ reg_t mpu_t::mpu_ok(reg_t addr, reg_t len, access_type type, reg_t mode)
     reg_t phys_address_mask = _mask[i]<<2;
     //if (i)
     #if MPU_DBG_PRINTOUT
-      printf("          MPU ENTRY %u: PHYS ADDR, MASK, CTRL: %#x %#x %#x\n", i, phys_address, phys_address_mask, s->mpu_control[i]);
+      printf("          MPU ENTRY %u: PHYS ADDR, MASK, CTRL: %#x %#x %#x\n", i, phys_address, phys_address_mask, _control[i]);
     #endif
-    for (atc = addr; atc < addr + len; atc++) {
+    for (atc = addr; atc < addr + len; atc++) { //FIXME: either check both ends or just the address as per EAS
       if ((atc & phys_address_mask) == (phys_address & phys_address_mask)) {
-        switch (mode) {
-        case PRV_M:
-          if (((type == LOAD) && (_control[i] & MPU_MMR)) ||
-              ((type == STORE) && (_control[i] & MPU_MMW)) ||
-              ((type == FETCH) && (_control[i] & MPU_MMX))) {
-            gp = true;
-          } else {
-            #if MPU_DBG_PRINTOUT
-              printf("          ! MPU_OK(%#x, %u, %s, MACHINE) => %u at record %u\n", addr, len, instr_type[type], 0, i);
-            #endif
-            return false;
-          }
-          break;
-        case PRV_S:
-          if (((type == LOAD) && (_control[i] & MPU_SMR)) ||
-              ((type == STORE) && (_control[i] & MPU_SMW)) ||
-              ((type == FETCH) && (_control[i] & MPU_SMX))) {
-            gp = true;
-          } else {
-            #if MPU_DBG_PRINTOUT
-              printf("          ! MPU_OK(%#x, %u, %s, SUPERVISOR) => %u at record %u\n", addr, len, instr_type[type], 0, i);
-            #endif
-            return false;
-          }
-          break;
-        case PRV_U:
-          if (((type == LOAD) && (_control[i] & MPU_UMR)) ||
-              ((type == STORE) && (_control[i] & MPU_UMW)) ||
-              ((type == FETCH) && (_control[i] & MPU_UMX))) {
-            gp = true;
-          } else {
-            #if MPU_DBG_PRINTOUT
-              printf("          ! MPU_OK(%#x, %u, %s, USER) => %u at record %u\n", addr, len, instr_type[type], 0, i);
-            #endif
-            return false;
-          }
-          break;
+        if (_control[i] & control_bit[mode][type]) {
+          gp = true;
+        } else {
+          #if MPU_DBG_PRINTOUT
+            printf("          ! MPU_OK(%#x, %u, %s, %s) => 0 at record %u\n", addr, len, instr_type[type], instr_mode[mode], i);
+          #endif
+          return false;
         }
         if (gp == false)
           ga = false;
@@ -142,16 +120,14 @@ reg_t mpu_t::mpu_ok(reg_t addr, reg_t len, access_type type, reg_t mode)
     }
   }
   #if MPU_DBG_PRINTOUT
-    printf("          MPU_OK(%#x, %u, %s, %s) => %u\n", addr, len, instr_type[type], (mode == PRV_U ? "USER" : (mode == PRV_M ? "MACHINE" : "SUPERVISOR") ), ga);
+    printf("          MPU_OK(%#x, %u, %s, %s) => %u\n", addr, len, instr_type[type], instr_mode[mode] , ga);
   #endif
   return ga;
 }
 
 bool mpu_t::mpu_mmio(reg_t addr, reg_t len)
 {
-  return false;
-  if(!proc)
-    return false;
+  return false;//FIXME: enable mmio mpu region check
   bool is_mmio_region = false;
   for (int i = 0; i < entries; i++) {
     if (!(_control[i] & MPU_VALID))

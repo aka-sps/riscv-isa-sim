@@ -18,6 +18,7 @@
 /* XXX */
 reg_t mtimer_base;
 reg_t print_base;
+reg_t mpu_entries;
 
 bool dbg;
 
@@ -334,7 +335,7 @@ int main(int argc, char** argv)
   parser.option(0, "pc", 1, [&](const char* s){start_pc = strtoull(s, 0, 0);});
   parser.option(0, "syn_mtimer", 1, [&](const char* s){mtimer_base = strtoull(s, 0, 0);});
   parser.option(0, "syn_print", 1, [&](const char* s){print_base = strtoull(s, 0, 0);});
-  //parser.option(0, "mpu_entries", 1, [&](const char* s){auto mpu_entries = strtoull(s, 0, 0);});
+  parser.option(0, "mpu_entries", 1, [&](const char* s){mpu_entries = strtoull(s, 0, 0);});
   parser.option(0, "hartids", 1, hartids_parser);
   parser.option(0, "ic", 1, [&](const char* s){ic.reset(new icache_sim_t(s));});
   parser.option(0, "dc", 1, [&](const char* s){dc.reset(new dcache_sim_t(s));});
