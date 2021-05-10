@@ -18,7 +18,7 @@
 /* XXX */
 reg_t mtimer_base;
 reg_t print_base;
-reg_t mpu_entries;
+reg_t mpu_entries = 16;
 
 bool dbg;
 
@@ -75,6 +75,7 @@ static void help(int exit_code = 1)
   fprintf(stderr, "  --dm-no-impebreak     Debug module won't support implicit ebreak in program buffer\n");
   fprintf(stderr, "  --syn_mtimer          SCR mtimer base address\n");
   fprintf(stderr, "  --syn_print           SCR print device base address\n");
+  fprintf(stderr, "  --mpu_entries         Number of MPU entries, MPU disabled if 0 [default: 16]\n");
 
   exit(exit_code);
 }

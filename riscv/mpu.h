@@ -42,6 +42,7 @@ public:
   ~mpu_t();
   reg_t mpu_ok(reg_t addr, reg_t len, access_type type, reg_t mode);
   bool mpu_mmio(reg_t addr, reg_t len);
+  bool is_enabled();
 
   void select(uint32_t);
   void control(uint32_t);

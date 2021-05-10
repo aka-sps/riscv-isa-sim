@@ -1292,7 +1292,6 @@ void processor_t::set_csr(int which, reg_t val)
       //printf("          MEM_CTRL_GLOBAL %#x\n", val);
       break;
 
-/* TODO: rm magic values */
     case CSR_MPUSELECT:
       mpu->select(val);
       break;
@@ -1740,13 +1739,18 @@ reg_t processor_t::get_csr(int which, insn_t insn, bool write, bool peek)
       ret(0);
     */
     case CSR_MPUSELECT:
-      ret(mpu->select());
+      if (mpu->is_enabled())
+        ret(mpu->select());
     case CSR_MPUCONTROL:
-      ret(mpu->control());
+      if (mpu->is_enabled())
+        ret(mpu->control());
     case CSR_MPUADDRESS:
-      ret(mpu->address());
+      if (mpu->is_enabled())
+        ret(mpu->address());
     case CSR_MPUMASK:
-      ret(mpu->mask());
+      if (mpu->is_enabled())
+        ret(mpu->mask());
+      goto throw_illegal;
     case CSR_MEMCTRLGLOBAL:
       ret(0); //TODO: learn how ret works and implement 0xbd4 properly
   }

@@ -6,6 +6,8 @@
 mpu_t::mpu_t(simif_t* sim, processor_t* proc, uint8_t entries)
  : sim(sim), proc(proc), entries(entries)
 {
+  if (entries == 0)
+    return;
   _control = new uint32_t[entries]{ (MPU_VALID | MPU_MMR | MPU_MMW | MPU_MMX | MTYPE_MMIO_NC_SO) };
   _address = new reg_t[entries];
   _mask = new reg_t[entries];
@@ -13,14 +15,21 @@ mpu_t::mpu_t(simif_t* sim, processor_t* proc, uint8_t entries)
 
 mpu_t::~mpu_t()
 {
+  if (entries == 0)
+    return;
   delete [] _control;
   delete [] _address;
   delete [] _mask;
 }
 
+bool mpu_t::is_enabled()
+{
+  return entries != 0;
+}
+
 void mpu_t::select(uint32_t sel)
 {
-  _select = sel & 0xf;
+  _select = sel % entries;
 }
 
 void mpu_t::control(uint32_t ctrl)
@@ -88,19 +97,20 @@ reg_t mpu_t::mpu_ok(reg_t addr, reg_t len, access_type type, reg_t mode)
   bool gp, ga = true;
 
   const static uint32_t control_bit[][3] = {
-    {MPU_UMR, MPU_UMW, MPU_UMX},
-    {MPU_SMR, MPU_SMW, MPU_SMX},
+    {MPU_UMR, MPU_UMW, MPU_UMX}, //PRV_U
+    {MPU_SMR, MPU_SMW, MPU_SMX}, //PRV_S
     {0,0,0},
-    {MPU_MMR, MPU_MMW, MPU_MMX}
+    {MPU_MMR, MPU_MMW, MPU_MMX}  //PRV_M
   };
 
   for (i = 0; i < entries; i++) {
     gp = false;
     if (!(_control[i] & MPU_VALID))
       continue;
+
     reg_t phys_address = _address[i]<<2;
     reg_t phys_address_mask = _mask[i]<<2;
-    //if (i)
+
     #if MPU_DBG_PRINTOUT
       printf("          MPU ENTRY %u: PHYS ADDR, MASK, CTRL: %#x %#x %#x\n", i, phys_address, phys_address_mask, _control[i]);
     #endif
@@ -128,7 +138,6 @@ reg_t mpu_t::mpu_ok(reg_t addr, reg_t len, access_type type, reg_t mode)
 bool mpu_t::mpu_mmio(reg_t addr, reg_t len)
 {
   return false;//FIXME: enable mmio mpu region check
-  bool is_mmio_region = false;
   for (int i = 0; i < entries; i++) {
     if (!(_control[i] & MPU_VALID))
       continue;
@@ -137,9 +146,9 @@ bool mpu_t::mpu_mmio(reg_t addr, reg_t len)
     if ((addr & phys_address_mask) == (phys_address & phys_address_mask)) {
       if ((_control[i] & MPU_MTYPE) == MTYPE_MMIO_NC_SO) {
         printf("%u mtype region\n", i);
-        is_mmio_region = true;
+        return true;
       }
     }
   }
-  return is_mmio_region;
+  return false;
 }
