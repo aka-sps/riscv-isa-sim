@@ -18,7 +18,7 @@
 #define PGSHIFT 12
 const reg_t PGSIZE = 1 << PGSHIFT;
 const reg_t PGMASK = ~(PGSIZE-1);
-#define MAX_PADDR_BITS 44 // SCR5_x64 uses SV39
+#define MAX_PADDR_BITS 56 // SCR5_x64 uses SV39
 
 /* SCR5 EAS */
 // SCR_MMU_TLBATTR reg masks
@@ -404,7 +404,7 @@ private:
   static const reg_t TLBI_ENTRIES = 64;// SCR TLBI have 64 PTEs
   static const reg_t TLBD_ENTRIES = 64;// SCR TLBD have 64 PTEs
 
-  static const reg_t TLB_ENTRIES = 256;//default in spike 256
+  static const reg_t TLB_ENTRIES = 64;//default in spike 256
 
   // If a TLB tag has TLB_CHECK_TRIGGERS set, then the MMU must check for a
   // trigger match before completing an access.
@@ -530,10 +530,11 @@ inline vm_info decode_vm_info(int xlen, bool stage2, reg_t prv, reg_t satp)
       case SATP_MODE_SV32: return {2, 10, 0, 4, (satp & SATP32_PPN) << PGSHIFT};
       default: abort();
     }
-  } else if (!stage2 && prv <= PRV_S && xlen == 64) {
-    switch (get_field(satp, SATP64_MODE)) {
+  }  else if (!stage2 && prv <= PRV_S && xlen == 64) {
+    switch (get_field(satp, SCR_SATP64_MODE)) {
       case SATP_MODE_OFF: return {0, 0, 0, 0, 0};
-      case SATP_MODE_SV39: return {3, 9, 0, 8, (satp & SATP64_PPN) << PGSHIFT};
+      case SATP_MODE_SV32: return {2, 10, 0, 4, (satp & SCR_SATP32_PPN) << PGSHIFT}; //
+      case SATP_MODE_SV39: return {3, 9, 0, 8, (satp & SCR_SATP64_PPN) << PGSHIFT};
       case SATP_MODE_SV48: return {4, 9, 0, 8, (satp & SATP64_PPN) << PGSHIFT};
       case SATP_MODE_SV57: return {5, 9, 0, 8, (satp & SATP64_PPN) << PGSHIFT};
       case SATP_MODE_SV64: return {6, 9, 0, 8, (satp & SATP64_PPN) << PGSHIFT};

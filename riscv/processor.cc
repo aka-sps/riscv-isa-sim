@@ -48,10 +48,12 @@ processor_t::processor_t(const char* isa, const char* priv, const char* varch,
   set_pmp_granularity(1 << PMP_SHIFT);
   set_pmp_num(state.max_pmp);
 
+  printf("MAX_XLEN = %#d \n", max_xlen);
+
   if (max_xlen == 32)
     set_mmu_capability(IMPL_MMU_SV32);
   else if (max_xlen == 64)
-    set_mmu_capability(IMPL_MMU_SV48);
+    set_mmu_capability(IMPL_MMU_SV39);
 
   reset();
 }
@@ -512,16 +514,20 @@ void processor_t::set_pmp_granularity(reg_t gran) {
 
 void processor_t::set_mmu_capability(int cap)
 {
+  printf("capability %#x \n", cap);
   switch (cap) {
     case IMPL_MMU_SV32:
+      printf ("it is a sv32 \n");
       set_impl(cap, true);
       set_impl(IMPL_MMU, true);
       break;
     case IMPL_MMU_SV39:
+      printf ("it is a sv39 \n");
       set_impl(cap, true);
       set_impl(IMPL_MMU, true);
       break;
     case IMPL_MMU_SV48:
+      printf ("it is a sv48 \n");
       set_impl(cap, true);
       set_impl(IMPL_MMU_SV39, true);
       set_impl(IMPL_MMU, true);
@@ -804,11 +810,15 @@ void processor_t::disasm(insn_t insn)
 int processor_t::paddr_bits()
 {
   assert(xlen == max_xlen);
-  return max_xlen == 64 ? 50 : 34;
+  return max_xlen == 64 ? 44 : 20; //  26/9/9 for 64; 10/10 for 32
 }
 
 reg_t processor_t::cal_satp(reg_t val) const
 {
+
+  reg_t a = ((state.satp & SATP64_PPN) * PGSIZE);
+  printf ("Get ppn from SATP_SCR %#x \n", a);
+
   reg_t reg_val = 0;
   reg_t rv64_ppn_mask = (reg_t(1) << (MAX_PADDR_BITS - PGSHIFT)) - 1;
   mmu->flush_tlb();
@@ -832,8 +842,8 @@ reg_t processor_t::cal_satp(reg_t val) const
         mode = supports_impl(IMPL_MMU_SV39) ? SATP_MODE_SV39 : SATP_MODE_OFF;
         break;
       case SATP_MODE_SV48:
-        mode = supports_impl(IMPL_MMU_SV48) ? SATP_MODE_SV48 : SATP_MODE_OFF;
-        break;
+       mode = supports_impl(IMPL_MMU_SV48) ? SATP_MODE_SV48 : SATP_MODE_OFF;
+      break;
     }
     reg_val = set_field(reg_val, SATP64_MODE, mode);
   }
@@ -1306,27 +1316,27 @@ void processor_t::set_csr(int which, reg_t val)
       break;
 
     // set MMU CSR values
-    case CSR_MMUTLBATTR:
+    case CSR_MMU_TLB_ATTR:
       state.mmu_attr.v   = get_field(val, MMU_ATTR_V);
-      printf("VALID bit of MMU_TLB_ATTR reg : %b", state.mmu_attr.v);
+      printf("VALID bit of MMU_TLB_ATTR reg : %#x", state.mmu_attr.v);
       state.mmu_attr.r   = get_field(val, MMU_ATTR_R);
-      printf("READ bit of MMU_TLB_ATTR reg : %b", state.mmu_attr.r);
+      printf("READ bit of MMU_TLB_ATTR reg : %#x", state.mmu_attr.r);
       state.mmu_attr.w   = get_field(val, MMU_ATTR_W);
-      printf("WRITE bit of MMU_TLB_ATTR reg : %b", state.mmu_attr.w);
+      printf("WRITE bit of MMU_TLB_ATTR reg : %#x", state.mmu_attr.w);
       state.mmu_attr.x   = get_field(val, MMU_ATTR_X);
-      printf("WRITE bit of MMU_TLB_ATTR reg : %b", state.mmu_attr.x);
+      printf("WRITE bit of MMU_TLB_ATTR reg : %#x", state.mmu_attr.x);
       state.mmu_attr.u   = get_field(val, MMU_ATTR_G);
       state.mmu_attr.g   = get_field(val, MMU_ATTR_U);
       state.mmu_attr.a   = get_field(val, MMU_ATTR_A);
       state.mmu_attr.d   = get_field(val, MMU_ATTR_D);
       state.mmu_attr.ps  = get_field(val, MMU_ATTR_PS);              // shift for 8 bit and get 2 bits for ps
-      printf("PS bits of MMU_TLB_ATTR reg : %", state.mmu_attr.ps);
+      printf("PS bits of MMU_TLB_ATTR reg : %#x", state.mmu_attr.ps);
       state.mmu_attr.ppn = ((state.mmu_attr.ps == 0) ? (get_field(val, MMU_ATTR_PPN_4KB)) :     //used 4KiB page: get 44 bits
                            ((state.mmu_attr.ps == 1) ? (get_field(val, MMU_ATTR_PPN_2MB)) :     //used 2MiB page: get 35 bits
                             (get_field(val, MMU_ATTR_PPN_1GB))));                               //used 1Gib page: get 26 bits
       break;
 
-    case CSR_MMUTLBVA:
+    case CSR_MMU_TLB_VA:
       state.mmu_vaddr.asid  = get_field(val, 0x1FF);
       state.mmu_vaddr.so    = get_field(val, 0x200);
       state.mmu_vaddr.nc    = get_field(val, 0x400);
@@ -1335,13 +1345,13 @@ void processor_t::set_csr(int which, reg_t val)
                               (get_field(val, MMU_VA_VPN_1GB))));                            //used 1Gib page: get 9 bits VPN
       break;
 
-    case CSR_MMUTLBUPDATE:
+    case CSR_MMU_TLB_UPDATE:
       state.mmu_tlb_update.itlb    =  get_field(val, 0x1);
       state.mmu_tlb_update.dtlb    =  get_field(val, 0x2);
       state.mmu_tlb_update.upd_ps  =  get_field(val, 0xC);
       break;
 
-    case CSR_MMUTLBSCAN:
+    case CSR_MMU_TLB_SCAN:
       state.mmu_tlb_scan.index     = get_field(val, 0x1F);
       state.mmu_tlb_scan.sel       = get_field(val >> 31, 0x1);
       break;
@@ -1795,7 +1805,7 @@ reg_t processor_t::get_csr(int which, insn_t insn, bool write, bool peek)
       goto throw_illegal;
     case CSR_MEMCTRLGLOBAL:
       ret(0); //TODO: learn how ret works and implement 0xbd4 properly
-    case CSR_MMUTLBATTR:
+    case CSR_MMU_TLB_ATTR:
     {
       reg_t v = 0;
       v = set_field(v, 0x1, state.mmu_attr.v);
@@ -1812,7 +1822,7 @@ reg_t processor_t::get_csr(int which, insn_t insn, bool write, bool peek)
           set_field(v, MMU_ATTR_PPN_1GB, state.mmu_attr.ppn));
       ret(v); 
     }     
-    case CSR_MMUTLBVA:
+    case CSR_MMU_TLB_VA:
     {
       reg_t v = 0;
       v = set_field(v, 0x1FF, state.mmu_vaddr.asid);
@@ -1823,9 +1833,9 @@ reg_t processor_t::get_csr(int which, insn_t insn, bool write, bool peek)
           set_field(v, MMU_VA_VPN_1GB, state.mmu_vaddr.vpn);                               //used 1Gib page: get 26 bits
       ret(v);
     }
-    case CSR_MMUTLBUPDATE:
+    case CSR_MMU_TLB_UPDATE:
      ret(state.mmu_tlb_update.dtlb);
-    case CSR_MMUTLBSCAN:
+    case CSR_MMU_TLB_SCAN:
      ret(state.mmu_tlb_scan.index);
   }
 

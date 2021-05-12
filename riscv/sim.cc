@@ -271,6 +271,9 @@ void sim_t::set_procs_debug(bool value)
 
 static bool paddr_ok(reg_t addr)
 {
+  printf("PADDR_OK: addr = %#x \n", addr);
+  auto shift_addr = addr >> MAX_PADDR_BITS;
+  printf("shift_addr = %#x \n", shift_addr);
   return (addr >> MAX_PADDR_BITS) == 0;
 }
 
