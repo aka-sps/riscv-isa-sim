@@ -16,6 +16,7 @@
 
 class processor_t;
 class mmu_t;
+class mpu_t;
 typedef reg_t (*insn_func_t)(processor_t*, insn_t, reg_t);
 class simif_t;
 class trap_t;
@@ -238,11 +239,6 @@ struct state_t
   reg_t vstval;
   reg_t vsatp;
 
-  uint32_t mpu_select;
-  uint32_t mpu_control[16] = { (MPU_VALID | MPU_MMR | MPU_MMW | MPU_MMX | (3 << 16)) };
-  reg_t mpu_address[16] = { };
-  reg_t mpu_mask[16] = { };
-
   mmuattr_t mmu_attr;
   mmuva_t mmu_vaddr;
   mmuupd_t mmu_tlb_update;
@@ -317,7 +313,7 @@ class processor_t : public abstract_device_t
 public:
   processor_t(const char* isa, const char* priv, const char* varch,
               simif_t* sim, uint32_t id, bool halt_on_reset,
-              FILE *log_file);
+              FILE *log_file, reg_t mpu_entries);
   ~processor_t();
 
   void set_debug(bool value);
@@ -333,6 +329,7 @@ public:
   reg_t get_csr(int which, insn_t insn, bool write, bool peek = 0);
   reg_t get_csr(int which) { return get_csr(which, insn_t(0), false, true); }
   mmu_t* get_mmu() { return mmu; }
+  mpu_t* get_mpu() { if(!mpu) printf("akhdfkjasdf"); return mpu; }
   state_t* get_state() { return &state; }
   unsigned get_xlen() { return xlen; }
   unsigned get_max_xlen() { return max_xlen; }
@@ -477,6 +474,7 @@ public:
 private:
   simif_t* sim;
   mmu_t* mmu; // main memory is always accessed via the mmu
+  mpu_t* mpu;
   extension_t* ext;
   disassembler_t* disassembler;
   state_t state;

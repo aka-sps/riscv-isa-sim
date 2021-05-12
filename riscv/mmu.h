@@ -222,6 +222,7 @@ public:
         throw trap_store_page_fault(t.get_tval(), t.get_tval2(), t.get_tinst()); \
       } catch (trap_load_access_fault& t) { \
         /* AMO faults should be reported as store faults */ \
+        printf("          !!! AMO access fault !!!\n");\
         throw trap_store_access_fault(t.get_tval(), t.get_tval2(), t.get_tinst()); \
       } \
     }
@@ -496,7 +497,6 @@ private:
 
   reg_t pmp_homogeneous(reg_t addr, reg_t len);
   reg_t pmp_ok(reg_t addr, reg_t len, access_type type, reg_t mode);
-  reg_t mpu_ok(reg_t addr, reg_t len, access_type type, reg_t mode);
 
 #ifdef RISCV_ENABLE_DUAL_ENDIAN
   bool target_big_endian;

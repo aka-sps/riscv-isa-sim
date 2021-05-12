@@ -24,7 +24,7 @@
 
 processor_t::processor_t(const char* isa, const char* priv, const char* varch,
                          simif_t* sim, uint32_t id, bool halt_on_reset,
-                         FILE* log_file)
+                         FILE* log_file, reg_t mpu_entries)
   : debug(false), halt_request(HR_NONE), sim(sim), ext(NULL), id(id), xlen(0),
   histogram_enabled(false), log_commits_enabled(false),
   log_file(log_file), halt_on_reset(halt_on_reset),
@@ -37,6 +37,7 @@ processor_t::processor_t(const char* isa, const char* priv, const char* varch,
   parse_varch_string(varch);
 
   register_base_instructions();
+  mpu = new mpu_t(sim, this, mpu_entries);
   mmu = new mmu_t(sim, this);
 
   disassembler = new disassembler_t(max_xlen);
@@ -1279,32 +1280,29 @@ void processor_t::set_csr(int which, reg_t val)
       VU.vxrm = val & 0x3ul;
       break;
 
-/* TODO: rm magic values */
+    case CSR_MEMCTRLGLOBAL:
+      // 1 - icache en, 2 - dcache en, 4 - icache flush, 8 - dcache flush
+      //icache_enabled = val&1;
+      //dcache_enabled = (val&2) != 0;
+      if(val & 4)
+        //mmu->flush_icache();
+      if(val & 8){
+        //flush dcache
+      }
+      //printf("          MEM_CTRL_GLOBAL %#x\n", val);
+      break;
+
     case CSR_MPUSELECT:
-      state.mpu_select = val & 0xF;
+      mpu->select(val);
       break;
     case CSR_MPUCONTROL:
-      if (state.mpu_control[state.mpu_select] & MPU_LOCK)
-        break;
-      state.mpu_control[state.mpu_select] = val & ~((0x3F << 10) | (0x1FFF << 18));
+      mpu->control(val);
       break;
     case CSR_MPUADDRESS:
-      if (state.mpu_control[state.mpu_select] & MPU_LOCK)
-        break;
-      if (xlen == 32) {
-        state.mpu_address[state.mpu_select] = val & ~(0x3FF | (3 << 30));
-      } else if (xlen == 64) {
-        state.mpu_address[state.mpu_select] = val & ~(0x3FF | (0x3FFFFFF << 38));
-      } 
+      mpu->address(val);
       break;
     case CSR_MPUMASK:
-      if (state.mpu_control[state.mpu_select] & MPU_LOCK)
-        break;
-      if (xlen == 32) {
-        state.mpu_mask[state.mpu_select] = val & ~(0x3FF | (3 << 30));
-      } else if (xlen == 64) {
-        state.mpu_mask[state.mpu_select] = val & ~(0x3FF | (0x3FFFFFF << 38));
-      }
+      mpu->mask(val);
       break;
 
     // set MMU CSR values
@@ -1772,14 +1770,31 @@ reg_t processor_t::get_csr(int which, insn_t insn, bool write, bool peek)
       if (!supports_extension('V'))
         break;
       ret(VU.vlenb);
+    /*
+    case CSR_MMUTLBATTR:
+      ret(0);
+    case CSR_MMUTLBVA:
+      ret(0);
+    case CSR_MMUTLBUPDATE:
+      ret(0);
+    case CSR_MMUTLBSCAN:
+      ret(0);
+    */
     case CSR_MPUSELECT:
-      ret(state.mpu_select);
+      if (mpu->is_enabled())
+        ret(mpu->select());
     case CSR_MPUCONTROL:
-      ret(state.mpu_control[state.mpu_select]);
+      if (mpu->is_enabled())
+        ret(mpu->control());
     case CSR_MPUADDRESS:
-      ret(state.mpu_address[state.mpu_select]);
+      if (mpu->is_enabled())
+        ret(mpu->address());
     case CSR_MPUMASK:
-      ret(state.mpu_mask[state.mpu_select]);
+      if (mpu->is_enabled())
+        ret(mpu->mask());
+      goto throw_illegal;
+    case CSR_MEMCTRLGLOBAL:
+      ret(0); //TODO: learn how ret works and implement 0xbd4 properly
     case CSR_MMUTLBATTR:
     {
       reg_t v = 0;
