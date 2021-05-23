@@ -69,7 +69,7 @@ sim_t::sim_t(const char* isa, const char* priv, const char* varch,
   }
 
   debug_module.add_device(&bus);
-
+  // printf("proc in sim to create debug_mmu = %#x", procs[0]);
   debug_mmu = new mmu_t(this, NULL);
 
   if (! (hartids.empty() || hartids.size() == nprocs)) {
@@ -138,15 +138,20 @@ sim_t::sim_t(const char* isa, const char* priv, const char* varch,
     char mmu_type[256] = "";
     rc = fdt_parse_mmu_type(fdt, cpu_offset, mmu_type);
     if (rc == 0) {
-      procs[cpu_idx]->set_mmu_capability(IMPL_MMU_BARE);
       if (strncmp(mmu_type, "riscv,sv32", strlen("riscv,sv32")) == 0) {
         procs[cpu_idx]->set_mmu_capability(IMPL_MMU_SV32);
-      } else if (strncmp(mmu_type, "riscv,sv39", strlen("riscv,sv39")) == 0) {
+      } 
+      else if (strncmp(mmu_type, "riscv,sv39", strlen("riscv,sv39")) == 0) 
+      {
         procs[cpu_idx]->set_mmu_capability(IMPL_MMU_SV39);
-      } else if (strncmp(mmu_type, "riscv,sv48", strlen("riscv,sv48")) == 0) {
+      } 
+      else if (strncmp(mmu_type, "riscv,sv48", strlen("riscv,sv48")) == 0)
+      {
         procs[cpu_idx]->set_mmu_capability(IMPL_MMU_SV48);
-      } else if (strncmp(mmu_type, "riscv,bare", strlen("riscv,bare")) == 0) {
+      } 
+      else if (strncmp(mmu_type, "riscv,bare", strlen("riscv,bare")) == 0) {
         //has been set in the beginning
+        procs[cpu_idx]->set_mmu_capability(IMPL_MMU_BARE);
       } else {
         std::cerr << "core ("
                   << hartids.size()
@@ -271,9 +276,9 @@ void sim_t::set_procs_debug(bool value)
 
 static bool paddr_ok(reg_t addr)
 {
-  printf("PADDR_OK: addr = %#x \n", addr);
+  // printf("PADDR_OK: addr = %#x \n", addr);
   auto shift_addr = addr >> MAX_PADDR_BITS;
-  printf("shift_addr = %#x \n", shift_addr);
+  // printf("shift_addr = %#x \n", shift_addr);
   return (addr >> MAX_PADDR_BITS) == 0;
 }
 

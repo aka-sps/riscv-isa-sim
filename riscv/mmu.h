@@ -122,10 +122,10 @@ public:
       size_t size = sizeof(type##_t); \
       if (likely(tlb_load_tag[vpn % TLB_ENTRIES] == vpn)) { \
         if (proc) READ_MEM(addr, size); \
-        return from_target(*(target_endian<type##_t>*)(tlb_data[vpn % TLB_ENTRIES].host_offset + addr)); \
+        return from_target(*(target_endian<type##_t>*)(tlbd[vpn % TLB_ENTRIES].host_offset + addr)); \
       } \
       if (unlikely(tlb_load_tag[vpn % TLB_ENTRIES] == (vpn | TLB_CHECK_TRIGGERS))) { \
-        type##_t data = from_target(*(target_endian<type##_t>*)(tlb_data[vpn % TLB_ENTRIES].host_offset + addr)); \
+        type##_t data = from_target(*(target_endian<type##_t>*)(tlbd[vpn % TLB_ENTRIES].host_offset + addr)); \
         if (!matched_trigger) { \
           matched_trigger = trigger_exception(OPERATION_LOAD, addr, data); \
           if (matched_trigger) \
@@ -186,7 +186,7 @@ public:
       size_t size = sizeof(type##_t); \
       if (likely(tlb_store_tag[vpn % TLB_ENTRIES] == vpn)) { \
         if (proc) WRITE_MEM(addr, val, size); \
-        *(target_endian<type##_t>*)(tlb_data[vpn % TLB_ENTRIES].host_offset + addr) = to_target(val); \
+        *(target_endian<type##_t>*)(tlbd[vpn % TLB_ENTRIES].host_offset + addr) = to_target(val); \
       } \
       else if (unlikely(tlb_store_tag[vpn % TLB_ENTRIES] == (vpn | TLB_CHECK_TRIGGERS))) { \
         if (!matched_trigger) { \
@@ -195,7 +195,7 @@ public:
             throw *matched_trigger; \
         } \
         if (proc) WRITE_MEM(addr, val, size); \
-        *(target_endian<type##_t>*)(tlb_data[vpn % TLB_ENTRIES].host_offset + addr) = to_target(val); \
+        *(target_endian<type##_t>*)(tlbd[vpn % TLB_ENTRIES].host_offset + addr) = to_target(val); \
       } \
       else { \
         target_endian<type##_t> target_val = to_target(val); \
@@ -401,29 +401,14 @@ private:
   icache_entry_t icache[ICACHE_ENTRIES];
 
   // implement a TLB for simulator performance
-  static const reg_t TLBI_ENTRIES = 64;// SCR TLBI have 64 PTEs
-  static const reg_t TLBD_ENTRIES = 64;// SCR TLBD have 64 PTEs
 
   static const reg_t TLB_ENTRIES = 64;//default in spike 256
 
   // If a TLB tag has TLB_CHECK_TRIGGERS set, then the MMU must check for a
   // trigger match before completing an access.
-  // tlb_entry_t tlbd_data[TLBD_ENTRIES];
-  // tlb_entry_t tlbd_code[TLBD_ENTRIES];
-  // reg_t tlbd_insn_tag[TLBD_ENTRIES];
-  // reg_t tlbd_load_tag[TLBD_ENTRIES];
-  // reg_t tlbd_store_tag[TLBD_ENTRIES];
-
-  // tlb_entry_t tlbi_data[TLBI_ENTRIES];
-  // tlb_entry_t tlbi_code[TLBI_ENTRIES];
-  // reg_t tlbi_insn_tag[TLBI_ENTRIES];
-  // reg_t tlbi_load_tag[TLBI_ENTRIES];
-  // reg_t tlbi_store_tag[TLBI_ENTRIES];
-
-
   static const reg_t TLB_CHECK_TRIGGERS = reg_t(1) << 63;
-  tlb_entry_t tlb_data[TLB_ENTRIES];
-  tlb_entry_t tlb_code[TLB_ENTRIES];
+  tlb_entry_t tlbd[TLB_ENTRIES];
+  tlb_entry_t tlbi[TLB_ENTRIES];
   reg_t tlb_insn_tag[TLB_ENTRIES];
   reg_t tlb_load_tag[TLB_ENTRIES];
   reg_t tlb_store_tag[TLB_ENTRIES];
@@ -454,20 +439,22 @@ private:
   bool mmio_store(reg_t addr, size_t len, const uint8_t* bytes);
   bool mmio_ok(reg_t addr, access_type type);
   reg_t translate(reg_t addr, reg_t len, access_type type, uint32_t xlate_flags);
-
+  reg_t get_va();
   // ITLB lookup
   inline tlb_entry_t translate_insn_addr(reg_t addr) {
-    reg_t vpn = addr >> PGSHIFT;
+    reg_t vpn = addr;
+    reg_t scr_vpn = get_va();
+    // reg_t vpn = addr >> PGSHIFT;
     if (likely(tlb_insn_tag[vpn % TLB_ENTRIES] == vpn))
-      return tlb_code[vpn % TLB_ENTRIES];
+      return tlbi[vpn % TLB_ENTRIES];
     tlb_entry_t result;
     if (unlikely(tlb_insn_tag[vpn % TLB_ENTRIES] != (vpn | TLB_CHECK_TRIGGERS))) {
       result = fetch_slow_path(addr);
     } else {
-      result = tlb_code[vpn % TLB_ENTRIES];
+      result = tlbi[vpn % TLB_ENTRIES];
     }
     if (unlikely(tlb_insn_tag[vpn % TLB_ENTRIES] == (vpn | TLB_CHECK_TRIGGERS))) {
-      target_endian<uint16_t>* ptr = (target_endian<uint16_t>*)(tlb_code[vpn % TLB_ENTRIES].host_offset + addr);
+      target_endian<uint16_t>* ptr = (target_endian<uint16_t>*)(tlbi[vpn % TLB_ENTRIES].host_offset + addr);
       int match = proc->trigger_match(OPERATION_EXECUTE, addr, from_target(*ptr));
       if (match >= 0) {
         throw trigger_matched_t(match, OPERATION_EXECUTE, addr, from_target(*ptr));
@@ -535,9 +522,9 @@ inline vm_info decode_vm_info(int xlen, bool stage2, reg_t prv, reg_t satp)
       case SATP_MODE_OFF: return {0, 0, 0, 0, 0};
       case SATP_MODE_SV32: return {2, 10, 0, 4, (satp & SCR_SATP32_PPN) << PGSHIFT}; //
       case SATP_MODE_SV39: return {3, 9, 0, 8, (satp & SCR_SATP64_PPN) << PGSHIFT};
-      case SATP_MODE_SV48: return {4, 9, 0, 8, (satp & SATP64_PPN) << PGSHIFT};
-      case SATP_MODE_SV57: return {5, 9, 0, 8, (satp & SATP64_PPN) << PGSHIFT};
-      case SATP_MODE_SV64: return {6, 9, 0, 8, (satp & SATP64_PPN) << PGSHIFT};
+      case SATP_MODE_SV48: return {4, 9, 0, 8, (satp & SCR_SATP64_PPN) << PGSHIFT};
+      case SATP_MODE_SV57: return {5, 9, 0, 8, (satp & SCR_SATP64_PPN) << PGSHIFT};
+      case SATP_MODE_SV64: return {6, 9, 0, 8, (satp & SCR_SATP64_PPN) << PGSHIFT};
       default: abort();
     }
   } else if (stage2 && xlen == 32) {

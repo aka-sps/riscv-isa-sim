@@ -28,7 +28,7 @@ processor_t::processor_t(const char* isa, const char* priv, const char* varch,
   : debug(false), halt_request(HR_NONE), sim(sim), ext(NULL), id(id), xlen(0),
   histogram_enabled(false), log_commits_enabled(false),
   log_file(log_file), halt_on_reset(halt_on_reset),
-  extension_table(256, false), impl_table(256, false), last_pc(1), executions(1)
+  extension_table(64, false), impl_table(64, false), last_pc(1), executions(1)
 {
   VU.p = this;
 
@@ -48,7 +48,7 @@ processor_t::processor_t(const char* isa, const char* priv, const char* varch,
   set_pmp_granularity(1 << PMP_SHIFT);
   set_pmp_num(state.max_pmp);
 
-  printf("MAX_XLEN = %#d \n", max_xlen);
+  //printf("MAX_XLEN = %#d \n", max_xlen);
 
   if (max_xlen == 32)
     set_mmu_capability(IMPL_MMU_SV32);
@@ -514,22 +514,24 @@ void processor_t::set_pmp_granularity(reg_t gran) {
 
 void processor_t::set_mmu_capability(int cap)
 {
-  printf("capability %#x \n", cap);
+  //printf("capability %#x \n", cap);
   switch (cap) {
     case IMPL_MMU_SV32:
-      printf ("it is a sv32 \n");
+      //printf ("it is a sv32 \n");
       set_impl(cap, true);
+      set_impl(IMPL_MMU_SV32, true);
       set_impl(IMPL_MMU, true);
       break;
     case IMPL_MMU_SV39:
-      printf ("it is a sv39 \n");
+      //printf ("it is a sv39 \n");
       set_impl(cap, true);
+      set_impl(IMPL_MMU_SV39, true);
       set_impl(IMPL_MMU, true);
       break;
     case IMPL_MMU_SV48:
-      printf ("it is a sv48 \n");
+      //printf ("it is a sv48 \n");
       set_impl(cap, true);
-      set_impl(IMPL_MMU_SV39, true);
+      set_impl(IMPL_MMU_SV48, true);
       set_impl(IMPL_MMU, true);
       break;
     default:
@@ -815,23 +817,20 @@ int processor_t::paddr_bits()
 
 reg_t processor_t::cal_satp(reg_t val) const
 {
-
-  reg_t a = ((state.satp & SATP64_PPN) * PGSIZE);
-  printf ("Get ppn from SATP_SCR %#x \n", a);
-
+  //printf("\n SATP CALLED!!!!!!!!!!!!!!!!!!!! \n");
   reg_t reg_val = 0;
   reg_t rv64_ppn_mask = (reg_t(1) << (MAX_PADDR_BITS - PGSHIFT)) - 1;
   mmu->flush_tlb();
   if (max_xlen == 32) {
-    reg_val = val & (SATP32_PPN |
-                    (supports_impl(IMPL_MMU_SV32) ? SATP32_MODE : 0));
+    reg_val = val & (SCR_SATP32_PPN |
+                    (supports_impl(IMPL_MMU_SV32) ? SCR_SATP32_MODE : 0));
   }
 
-  if (max_xlen == 64 && (get_field(val, SATP64_MODE) == SATP_MODE_OFF ||
-                         get_field(val, SATP64_MODE) == SATP_MODE_SV39 ||
-                         get_field(val, SATP64_MODE) == SATP_MODE_SV48)) {
-    reg_val = val & (SATP64_PPN | rv64_ppn_mask);
-    reg_t mode = get_field(val, SATP64_MODE);
+  if (max_xlen == 64 && (get_field(val, SCR_SATP64_MODE) == SATP_MODE_OFF ||
+                         get_field(val, SCR_SATP64_MODE) == SATP_MODE_SV39 ||
+                         get_field(val, SCR_SATP64_MODE) == SATP_MODE_SV48)) {
+    reg_val = val & (SCR_SATP64_PPN | rv64_ppn_mask);
+    reg_t mode = get_field(val, SCR_SATP64_MODE);
 
     switch(mode) {
       case SATP_MODE_OFF:
@@ -845,9 +844,8 @@ reg_t processor_t::cal_satp(reg_t val) const
        mode = supports_impl(IMPL_MMU_SV48) ? SATP_MODE_SV48 : SATP_MODE_OFF;
       break;
     }
-    reg_val = set_field(reg_val, SATP64_MODE, mode);
+    reg_val = set_field(reg_val, SCR_SATP64_MODE, mode);
   }
-
   return reg_val;
 }
 void processor_t::set_csr(int which, reg_t val)
@@ -1299,7 +1297,7 @@ void processor_t::set_csr(int which, reg_t val)
       if(val & 8){
         //flush dcache
       }
-      //printf("          MEM_CTRL_GLOBAL %#x\n", val);
+      ////printf("          MEM_CTRL_GLOBAL %#x\n", val);
       break;
 
     case CSR_MPUSELECT:
@@ -1318,19 +1316,19 @@ void processor_t::set_csr(int which, reg_t val)
     // set MMU CSR values
     case CSR_MMU_TLB_ATTR:
       state.mmu_attr.v   = get_field(val, MMU_ATTR_V);
-      printf("VALID bit of MMU_TLB_ATTR reg : %#x", state.mmu_attr.v);
+      //printf("VALID bit of MMU_TLB_ATTR reg : %#x", state.mmu_attr.v);
       state.mmu_attr.r   = get_field(val, MMU_ATTR_R);
-      printf("READ bit of MMU_TLB_ATTR reg : %#x", state.mmu_attr.r);
+      //printf("READ bit of MMU_TLB_ATTR reg : %#x", state.mmu_attr.r);
       state.mmu_attr.w   = get_field(val, MMU_ATTR_W);
-      printf("WRITE bit of MMU_TLB_ATTR reg : %#x", state.mmu_attr.w);
+      //printf("WRITE bit of MMU_TLB_ATTR reg : %#x", state.mmu_attr.w);
       state.mmu_attr.x   = get_field(val, MMU_ATTR_X);
-      printf("WRITE bit of MMU_TLB_ATTR reg : %#x", state.mmu_attr.x);
+      //printf("WRITE bit of MMU_TLB_ATTR reg : %#x", state.mmu_attr.x);
       state.mmu_attr.u   = get_field(val, MMU_ATTR_G);
       state.mmu_attr.g   = get_field(val, MMU_ATTR_U);
       state.mmu_attr.a   = get_field(val, MMU_ATTR_A);
       state.mmu_attr.d   = get_field(val, MMU_ATTR_D);
       state.mmu_attr.ps  = get_field(val, MMU_ATTR_PS);              // shift for 8 bit and get 2 bits for ps
-      printf("PS bits of MMU_TLB_ATTR reg : %#x", state.mmu_attr.ps);
+      //printf("PS bits of MMU_TLB_ATTR reg : %#x", state.mmu_attr.ps);
       state.mmu_attr.ppn = ((state.mmu_attr.ps == 0) ? (get_field(val, MMU_ATTR_PPN_4KB)) :     //used 4KiB page: get 44 bits
                            ((state.mmu_attr.ps == 1) ? (get_field(val, MMU_ATTR_PPN_2MB)) :     //used 2MiB page: get 35 bits
                             (get_field(val, MMU_ATTR_PPN_1GB))));                               //used 1Gib page: get 26 bits
@@ -1346,14 +1344,14 @@ void processor_t::set_csr(int which, reg_t val)
       break;
 
     case CSR_MMU_TLB_UPDATE:
-      state.mmu_tlb_update.itlb    =  get_field(val, 0x1);
-      state.mmu_tlb_update.dtlb    =  get_field(val, 0x2);
-      state.mmu_tlb_update.upd_ps  =  get_field(val, 0xC);
+      state.mmu_update.itlb    =  get_field(val, 0x1);
+      state.mmu_update.dtlb    =  get_field(val, 0x2);
+      state.mmu_update.upd_ps  =  get_field(val, 0xC);
       break;
 
     case CSR_MMU_TLB_SCAN:
-      state.mmu_tlb_scan.index     = get_field(val, 0x1F);
-      state.mmu_tlb_scan.sel       = get_field(val >> 31, 0x1);
+      state.mmu_scan.index     = get_field(val, 0x1F);
+      state.mmu_scan.sel       = get_field(val, 0x80000000);
       break;
   
   }
@@ -1807,6 +1805,7 @@ reg_t processor_t::get_csr(int which, insn_t insn, bool write, bool peek)
       ret(0); //TODO: learn how ret works and implement 0xbd4 properly
     case CSR_MMU_TLB_ATTR:
     {
+      if (state.v) {
       reg_t v = 0;
       v = set_field(v, 0x1, state.mmu_attr.v);
       v = set_field(v, 0x2, state.mmu_attr.r);
@@ -1821,9 +1820,13 @@ reg_t processor_t::get_csr(int which, insn_t insn, bool write, bool peek)
           ((state.mmu_attr.ps = 1) ? set_field(v, MMU_ATTR_PPN_2MB, state.mmu_attr.ppn) :
           set_field(v, MMU_ATTR_PPN_1GB, state.mmu_attr.ppn));
       ret(v); 
+      }else {
+        ret(0);
+      }
     }     
     case CSR_MMU_TLB_VA:
     {
+      if (state.v) {
       reg_t v = 0;
       v = set_field(v, 0x1FF, state.mmu_vaddr.asid);
       v = set_field(v, 0x200, state.mmu_vaddr.so);
@@ -1832,11 +1835,34 @@ reg_t processor_t::get_csr(int which, insn_t insn, bool write, bool peek)
           (state.mmu_attr.ps == 1) ? set_field(v, MMU_VA_VPN_2MB, state.mmu_vaddr.vpn) :   //used 2MiB page: get 35 bits
           set_field(v, MMU_VA_VPN_1GB, state.mmu_vaddr.vpn);                               //used 1Gib page: get 26 bits
       ret(v);
+      }
+      else ret(0);
     }
     case CSR_MMU_TLB_UPDATE:
-     ret(state.mmu_tlb_update.dtlb);
+    {
+      if (state.v) {
+        reg_t v = 0;
+        v = set_field(v, 0x1, state.mmu_update.itlb);
+        v = set_field(v, 0x2, state.mmu_update.dtlb);
+        v = set_field(v, 0xA, state.mmu_update.upd_ps);
+        // v = state.mmu_tlb_upd_reg;
+        ret(v);
+      }else{
+        ret(0);
+      }
+    }
     case CSR_MMU_TLB_SCAN:
-     ret(state.mmu_tlb_scan.index);
+    {
+      if (state.v) {
+        reg_t v = 0;
+        v = set_field(v, 0x1F, state.mmu_scan.index);
+        v = set_field(v, 0x80000000, state.mmu_scan.sel);
+        // v = state.mmu_tlb_scan_reg;
+        ret(v);
+      }else{
+        ret(0);
+      }
+    }  
   }
 
 #undef ret

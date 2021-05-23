@@ -241,8 +241,13 @@ struct state_t
 
   mmuattr_t mmu_attr;
   mmuva_t mmu_vaddr;
-  mmuupd_t mmu_tlb_update;
-  mmuscan_t mmu_tlb_scan;
+  mmuupd_t mmu_update;
+  mmuscan_t mmu_scan;
+
+  reg_t mmu_tlb_attr_reg;
+  reg_t mmu_tlb_va_reg;
+  reg_t mmu_tbb_upd_reg;
+  reg_t mmu_tlb_scan_reg;
 
   reg_t dpc;
   reg_t dscratch0, dscratch1;

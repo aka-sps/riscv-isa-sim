@@ -15,7 +15,6 @@ mmu_t::mmu_t(simif_t* sim, processor_t* proc)
   check_triggers_store(false),
   matched_trigger(NULL)
 {
-  //printf("Create MMU class, then flush all tbl \n");
   flush_tlb();
   yield_load_reservation();
 }
@@ -26,7 +25,7 @@ mmu_t::~mmu_t()
 
 void mmu_t::flush_icache()
 {
-  printf("FLUSH ICACHE\n");
+  //printf("FLUSH ICACHE\n");
   for (size_t i = 0; i < ICACHE_ENTRIES; i++)
     icache[i].tag = -1;
 }
@@ -53,12 +52,15 @@ static void throw_access_exception(reg_t addr, access_type type)
       throw trap_load_access_fault(addr, 0, 0);
       break;
     case STORE:
-      //printf("          !!!! STORE(1)\n");
       throw trap_store_access_fault(addr, 0, 0);
       break;
     default:
       abort();
   }
+}
+reg_t mmu_t::get_va()
+{
+  return proc->state.mmu_vaddr.vpn;
 }
 
 reg_t mmu_t::translate(reg_t addr, reg_t len, access_type type, uint32_t xlate_flags)
@@ -67,13 +69,14 @@ reg_t mmu_t::translate(reg_t addr, reg_t len, access_type type, uint32_t xlate_f
     return addr;
   }
 
-  reg_t a = (get_field(proc->state.satp, SATP64_PPN) * PGSIZE);
-  printf ("Get ppn from SATP_SCR %#x \n", &a);
+  reg_t scr_addr = (get_field(proc->state.satp, SATP64_PPN));
+  
+  //printf ("Get ppn from SATP_SCR %#x \n", scr_addr);
 
   bool mxr = get_field(proc->state.mstatus, MSTATUS_MXR);
 
-  printf("TRANSLATE: addr = %#x , len %#x , type %#x , xlate_flags %#x \n", addr, len, type, xlate_flags);
-  printf("mxr = %b \n", mxr);
+  //printf("TRANSLATE: addr = %#x , len %#x , type %#x , xlate_flags %#x \n", addr, len, type, xlate_flags);
+  //printf("mxr = %b \n", mxr);
   bool virt = proc->state.v;
   reg_t mode = proc->state.prv;
   if (type != FETCH) {
@@ -91,7 +94,7 @@ reg_t mmu_t::translate(reg_t addr, reg_t len, access_type type, uint32_t xlate_f
     }
   }
   reg_t physaddr = proc->state.mmu_attr.ppn;
-  printf("MMU ATTR PPN: %#x", physaddr);
+  //printf("MMU ATTR PPN: %#x \n", physaddr);
   reg_t paddr = walk(addr, type, mode, virt, mxr) | (addr & (PGSIZE-1));
   if (!pmp_ok(paddr, len, type, mode))
     throw_access_exception(addr, type);
@@ -146,7 +149,7 @@ reg_t reg_from_bytes(size_t len, const uint8_t* bytes)
 bool mmu_t::mmio_ok(reg_t addr, access_type type)
 {
   // Disallow access to debug region when not in debug mode
-  printf("MMIO_OK: addr = %#x, proc = %#x", addr, proc);
+  //printf("MMIO_OK: addr = %#x, proc = %#x", addr, proc);
   if (addr >= DEBUG_START && addr <= DEBUG_END && proc && !proc->state.debug_mode)
     return false;
   
@@ -155,7 +158,7 @@ bool mmu_t::mmio_ok(reg_t addr, access_type type)
 
 bool mmu_t::mmio_load(reg_t addr, size_t len, uint8_t* bytes)
 {
-/*  printf("Howdy partner %d\n", proc->get_id()); */
+//printf("Howdy partner %d\n", proc->get_id());
   if (!mmio_ok(addr, LOAD))
     return false;
 
@@ -166,10 +169,10 @@ bool mmu_t::mmio_store(reg_t addr, size_t len, const uint8_t* bytes)
 {
   if (!mmio_ok(addr, STORE))
     {
-      printf("MMIO FALSE! addr = %#x", &addr);
+      //printf("MMIO FALSE! addr = %#x", &addr);
     return false;
     }
-  printf("MMIO FALSE! addr = %#x, len = %#x, bytes = %#x \n", addr, len, bytes);
+  //printf("MMIO FALSE! addr = %#x, len = %#x, bytes = %#x \n", addr, len, bytes);
   return sim->mmio_store(addr, len, bytes);
 }
 
@@ -204,11 +207,11 @@ void mmu_t::load_slow_path(reg_t addr, reg_t len, uint8_t* bytes, uint32_t xlate
 
 void mmu_t::store_slow_path(reg_t addr, reg_t len, const uint8_t* bytes, uint32_t xlate_flags)
 {
-  printf("addr: %#x, len: %#x, bytes: %#x, xlate_flags: %#x \n", addr, len, bytes, xlate_flags);
+  //printf("addr: %#x, len: %#x, bytes: %#x, xlate_flags: %#x \n", addr, len, bytes, xlate_flags);
   reg_t paddr = translate(addr, len, STORE, xlate_flags);
-  printf("paddr : %#x \n", paddr);
-  // reg_t physaddr = proc->state.mmu_vaddr.vpn;
-  // printf("physaddr : %#x", physaddr);
+  //printf("paddr : %#x \n", paddr);
+  //reg_t physaddr = proc->state.mmu_vaddr.vpn;
+  //printf("physaddr : %#x", physaddr);
   if (!matched_trigger) {
     reg_t data = reg_from_bytes(len, bytes);
     matched_trigger = trigger_exception(OPERATION_STORE, addr, data);
@@ -226,6 +229,7 @@ void mmu_t::store_slow_path(reg_t addr, reg_t len, const uint8_t* bytes, uint32_
       refill_tlb(addr, paddr, host_addr, STORE);
     }
   } else if (!mmio_store(paddr, len, bytes)) {
+      printf ("\n !!! DROPED IN MMIO STORE! \n");
       throw trap_store_access_fault(addr, 0, 0);
   }
 }
@@ -233,11 +237,11 @@ void mmu_t::store_slow_path(reg_t addr, reg_t len, const uint8_t* bytes, uint32_
 tlb_entry_t mmu_t::refill_tlb(reg_t vaddr, reg_t paddr, char* host_addr, access_type type)
 {
   reg_t idx = (vaddr >> PGSHIFT) % TLB_ENTRIES;
-  printf("REFILL TLB!!!!");
-  printf("vaddr: %#x, paddr: %#x, host_addr: %#x, access_type: %#x \n", vaddr, paddr, host_addr, type);
+  //printf("REFILL TLB!!!!");
+  //printf("vaddr: %#x, paddr: %#x, host_addr: %#x, access_type: %#x \n", vaddr, paddr, host_addr, type);
   reg_t expected_tag = vaddr >> PGSHIFT;
 
-  printf("tlb_load_tag[idx]: %#x[%#x] = %#x", tlb_load_tag, idx, tlb_load_tag[idx]);
+  //printf("tlb_load_tag[idx]: %#x[%#x] = %#x", tlb_load_tag, idx, tlb_load_tag[idx]);
   if ((tlb_load_tag[idx] & ~TLB_CHECK_TRIGGERS) != expected_tag)
     tlb_load_tag[idx] = -1;
   if ((tlb_store_tag[idx] & ~TLB_CHECK_TRIGGERS) != expected_tag)
@@ -258,9 +262,9 @@ tlb_entry_t mmu_t::refill_tlb(reg_t vaddr, reg_t paddr, char* host_addr, access_
 
   tlb_entry_t entry = {host_addr - vaddr, paddr - vaddr};
   if (type == FETCH) {
-    tlb_code[idx] = entry;
+    tlbi[idx] = entry;
   } else {
-    tlb_data[idx] = entry;
+    tlbd[idx] = entry;
   }
   return entry;
 }
@@ -356,9 +360,9 @@ reg_t mmu_t::s2xlate(reg_t gva, reg_t gpa, access_type type, access_type trap_ty
 {
   if (!virt)
     return gpa;
-  printf("DECODE VM INFO!!!");
+  //printf("DECODE VM INFO!!!");
   vm_info vm = decode_vm_info(proc->max_xlen, true, 0, proc->get_state()->hgatp);
-  printf("max_len = %#x", &proc->max_xlen);
+  //printf("max_len = %#x", &proc->max_xlen);
   if (vm.levels == 0)
     return gpa;
 
