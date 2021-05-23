@@ -100,8 +100,8 @@ sim_t::sim_t(const char* isa, const char* priv, const char* varch,
   }
 
   //handle mm mtimer
-  if (mtimer_base != 0) {
-    mtimer.reset(new mtimer_device_t(procs));
+  mtimer.reset(new mtimer_device_t(procs)); //timer is always present but not always available
+  if (mtimer_base != 0) { //only add timer to bus if it was explicitly set through a parameter
     bus.add_device(mtimer_base, mtimer.get());
   }
 
@@ -213,8 +213,7 @@ void sim_t::step(size_t n)
 {
   for (size_t i = 0, steps = 0; i < n; i += steps)
   {
-    if (mtimer_base != 0)
-      mtimer->increment(1);
+    mtimer->increment(1);
     steps = std::min(n - i, INTERLEAVE - current_step);
     procs[current_proc]->step(steps);
 
@@ -286,14 +285,32 @@ bool sim_t::mmio_load(reg_t addr, size_t len, uint8_t* bytes)
 {
   if (addr + len < addr || !paddr_ok(addr + len - 1))
     return false;
-  return bus.load(addr, len, bytes);
+  bool from_bus = bus.load(addr, len, bytes);
+  if(!from_bus){
+    //check if device is defined in MPU
+    if (procs.size()) {
+      mpu_t* mpu = procs[current_proc]->get_mpu();
+      if (mpu->mpu_mmio(addr, len))
+        return mtimer->load(addr - mpu->get_mmio_base(addr), len, bytes);
+    }
+  }
+  return from_bus;
 }
 
 bool sim_t::mmio_store(reg_t addr, size_t len, const uint8_t* bytes)
 {
   if (addr + len < addr || !paddr_ok(addr + len - 1))
     return false;
-  return bus.store(addr, len, bytes);
+  bool from_bus = bus.store(addr, len, bytes);
+  if(!from_bus){
+    //check if device is defined in MPU
+    if (procs.size()) {
+      mpu_t* mpu = procs[current_proc]->get_mpu();
+      if (mpu->mpu_mmio(addr, len))
+        return mtimer->store(addr - mpu->get_mmio_base(addr), len, bytes);
+    }
+  }
+  return from_bus;
 }
 
 void sim_t::make_dtb()
@@ -377,7 +394,8 @@ void sim_t::set_rom()
   bus.add_device(DEFAULT_RSTVEC, boot_rom.get());
 }
 
-char* sim_t::addr_to_mem(reg_t addr) {
+char* sim_t::addr_to_mem(reg_t addr)
+{
   if (!paddr_ok(addr))
     return NULL;
   auto desc = bus.find_device(addr);

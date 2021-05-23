@@ -6,20 +6,20 @@
 mpu_t::mpu_t(simif_t* sim, processor_t* proc, uint8_t entries)
  : sim(sim), proc(proc), entries(entries)
 {
-  if (entries == 0)
-    return;
-  _control = new uint32_t[entries]{ (MPU_VALID | MPU_MMR | MPU_MMW | MPU_MMX | MTYPE_MMIO_NC_SO) };
-  _address = new reg_t[entries];
-  _mask = new reg_t[entries];
+  if (entries) {
+    _control = new uint32_t[entries]{ (MPU_VALID | MPU_MMR | MPU_MMW | MPU_MMX | MTYPE_NC_SO) };
+    _address = new reg_t[entries];
+    _mask = new reg_t[entries];
+  }
 }
 
 mpu_t::~mpu_t()
 {
-  if (entries == 0)
-    return;
-  delete [] _control;
-  delete [] _address;
-  delete [] _mask;
+  if (entries) {
+    delete [] _control;
+    delete [] _address;
+    delete [] _mask;
+  }
 }
 
 bool mpu_t::is_enabled()
@@ -137,7 +137,6 @@ reg_t mpu_t::mpu_ok(reg_t addr, reg_t len, access_type type, reg_t mode)
 
 bool mpu_t::mpu_mmio(reg_t addr, reg_t len)
 {
-  return false;//FIXME: enable mmio mpu region check
   for (int i = 0; i < entries; i++) {
     if (!(_control[i] & MPU_VALID))
       continue;
@@ -151,4 +150,20 @@ bool mpu_t::mpu_mmio(reg_t addr, reg_t len)
     }
   }
   return false;
+}
+
+reg_t mpu_t::get_mmio_base(reg_t addr)
+{
+  for (int i = 0; i < entries; i++) {
+    if (!(_control[i] & MPU_VALID))
+      continue;
+    reg_t phys_address = _address[i]<<2;
+    reg_t phys_address_mask = _mask[i]<<2;
+    if ((addr & phys_address_mask) == (phys_address & phys_address_mask)) {
+      if ((_control[i] & MPU_MTYPE) == MTYPE_MMIO_NC_SO) {
+        return phys_address;
+      }
+    }
+  }
+  return 0;
 }
