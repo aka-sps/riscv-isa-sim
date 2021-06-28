@@ -100,7 +100,7 @@ tlb_entry_t mmu_t::fetch_slow_path(reg_t vaddr)
   if (host_addr && !mpu_mmio) { //not a bus device(host_addr isn't nil) and not a mpu configured mmio
     return refill_tlb(vaddr, paddr, host_addr, FETCH);
   } else {
-    printf("          @@@@@ FETCH MMIO\n");
+    //printf("          @@@@@ FETCH MMIO\n");
     if (!mmio_load(paddr, sizeof fetch_temp, (uint8_t*)&fetch_temp))
       throw trap_instruction_access_fault(vaddr, 0, 0);
     tlb_entry_t entry = {(char*)&fetch_temp - vaddr, paddr - vaddr};
@@ -174,7 +174,7 @@ void mmu_t::load_slow_path(reg_t addr, reg_t len, uint8_t* bytes, uint32_t xlate
       refill_tlb(addr, paddr, host_addr, LOAD);
     }
   } else {
-    printf("          @@@@@ LOAD MMIO\n");
+    //printf("          @@@@@ LOAD MMIO\n");
     if (!mmio_load(paddr, len, bytes)) {
       throw trap_load_access_fault(addr, 0, 0);
     }
@@ -210,7 +210,7 @@ void mmu_t::store_slow_path(reg_t addr, reg_t len, const uint8_t* bytes, uint32_
       refill_tlb(addr, paddr, host_addr, STORE);
     }
   } else {
-    printf("          @@@@@ STORE MMIO\n");
+    //printf("          @@@@@ STORE MMIO\n");
     if (!mmio_store(paddr, len, bytes)) {
       throw trap_store_access_fault(addr, 0, 0);
     }

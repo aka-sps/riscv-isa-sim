@@ -286,7 +286,7 @@ public:
   reg_t get_csr(int which, insn_t insn, bool write, bool peek = 0);
   reg_t get_csr(int which) { return get_csr(which, insn_t(0), false, true); }
   mmu_t* get_mmu() { return mmu; }
-  mpu_t* get_mpu() { if(!mpu) printf("akhdfkjasdf"); return mpu; }
+  mpu_t* get_mpu() { return mpu; }
   state_t* get_state() { return &state; }
   unsigned get_xlen() { return xlen; }
   unsigned get_max_xlen() { return max_xlen; }
