@@ -84,7 +84,7 @@ reg_t mpu_t::mask()
   return _mask[_select];
 }
 
-#define MPU_DBG_PRINTOUT 1
+#define MPU_DBG_PRINTOUT 0
 
 #if MPU_DBG_PRINTOUT
   static char* instr_type[] = {"L", "S", "F",};
