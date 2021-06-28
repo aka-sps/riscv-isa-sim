@@ -203,7 +203,7 @@ public:
         throw trap_store_page_fault(t.get_tval(), t.get_tval2(), t.get_tinst()); \
       } catch (trap_load_access_fault& t) { \
         /* AMO faults should be reported as store faults */ \
-        //printf("          !!! AMO access fault !!!\n");\
+        /*printf("          !!! AMO access fault !!!\n");*/\
         throw trap_store_access_fault(t.get_tval(), t.get_tval2(), t.get_tinst()); \
       } \
     }
