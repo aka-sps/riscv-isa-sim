@@ -1738,6 +1738,11 @@ reg_t processor_t::get_csr(int which, insn_t insn, bool write, bool peek)
     case CSR_MMUTLBSCAN:
       ret(0);
     */
+
+   /**
+    *\brief if MPU is not enabled any corresponding CSR will fall through
+    * and throw illega instruction exception instead
+    */
     case CSR_MPUSELECT:
       if (mpu->is_enabled())
         ret(mpu->select());
