@@ -144,7 +144,6 @@ bool mpu_t::mpu_mmio(reg_t addr, reg_t len)
     reg_t phys_address_mask = _mask[i]<<2;
     if ((addr & phys_address_mask) == (phys_address & phys_address_mask)) {
       if ((_control[i] & MPU_MTYPE) == MTYPE_MMIO_NC_SO) {
-        printf("%u mtype region\n", i);
         return true;
       }
     }
