@@ -251,6 +251,7 @@ typedef enum {
   IMPL_MMU_SV32,
   IMPL_MMU_SV39,
   IMPL_MMU_SV48,
+  IMPL_MMU_SV57,
   IMPL_MMU_BARE,
   IMPL_MMU,
 } impl_extension_t;

@@ -145,6 +145,8 @@ sim_t::sim_t(const char* isa, const char* priv, const char* varch,
         procs[cpu_idx]->set_mmu_capability(IMPL_MMU_SV39);
       } else if (strncmp(mmu_type, "riscv,sv48", strlen("riscv,sv48")) == 0) {
         procs[cpu_idx]->set_mmu_capability(IMPL_MMU_SV48);
+      } else if (strncmp(mmu_type, "riscv,sv57", strlen("riscv,sv57")) == 0) {
+        procs[cpu_idx]->set_mmu_capability(IMPL_MMU_SV57);
       } else if (strncmp(mmu_type, "riscv,bare", strlen("riscv,bare")) == 0) {
         //has been set in the beginning
       } else {
