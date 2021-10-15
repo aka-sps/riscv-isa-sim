@@ -288,10 +288,29 @@ void processor_t::step(size_t n)
           }
 
           insn_fetch_t fetch = mmu->load_insn(pc);
-          if (debug && !state.serialized)
+          if (debug && !state.serialized){
             disasm(fetch.insn);
+          }
+
+//          NOTE find reg number by args[1] (? e.g. "t0")
+//          TODO need test find
+//          WARNING may not work at this area !!!
+//           unsigned long r = std::find(xpr_name, xpr_name + NXPR, args[1]) - xpr_name;
+//          NOTE: get reg name and value by reg number
+//           fprintf(stderr, "%-4s: %016" PRIx64 "\n" , xpr_name[r], state.XPR[r]);          
+//           fprintf(stderr, "%-4s: %016" PRIx64 "\n" , xpr_name[0], state.XPR[0]); // zero          
+//           fprintf(stderr, "%-4s: %016" PRIx64 "\n" , xpr_name[5], state.XPR[5]); // t0  
+//          NOTE get rd field of instruction
+//           fprintf(stderr, "rd = %08" PRIx32 "\n", fetch.insn.rd());          
+          
+          fprintf(stderr, "CLK R E %016" PRIx64 " %08" PRIx64, state.pc, fetch.insn.bits());
+          
           pc = execute_insn(this, pc, fetch);
+          
           advance_pc();
+
+          unsigned long r = fetch.insn.rd();
+          fprintf(stderr, " %016" PRIx64 " %4s=%016" PRIx64 "\n" , pc, xpr_name[r], state.XPR[r] );
         }
       }
       else while (instret < n)
@@ -363,7 +382,11 @@ void processor_t::step(size_t n)
         // instructions are idempotent so restarting is safe.)
 
         insn_fetch_t fetch = mmu->load_insn(pc);
+//         NOTE output tracelog at some exception
+//         TODO realize tracelog in trigger_matched
+//         fprintf(stderr, "trigger_matched: CLK R E %016" PRIx64 " %08" PRIx64 "\n", pc, fetch.insn.bits());
         pc = execute_insn(this, pc, fetch);
+
         advance_pc();
 
         delete mmu->matched_trigger;
