@@ -94,7 +94,7 @@ VPATH := $(addprefix $(src_dir)/, $(sprojs_enabled))
 # highest.
 
 default-CFLAGS   := -DPREFIX=\"$(prefix)\" -Wall -Wno-unused -g -O2 -fPIC
-default-CXXFLAGS := $(default-CFLAGS) -std=c++11
+default-CXXFLAGS := $(default-CFLAGS) -std=gnu++11
 
 mcppbs-CPPFLAGS := @CPPFLAGS@ @BOOST_CPPFLAGS@
 mcppbs-CFLAGS   := $(default-CFLAGS) @CFLAGS@
