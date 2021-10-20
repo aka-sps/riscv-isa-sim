@@ -17,11 +17,11 @@ protected:
   size_t base;
   size_t width;
   size_t depth;
-  std::map<addr_t,std::vector<char> > mem;
+  std::map<addr_type,std::vector<char> > mem;
 
-  void read_chunk(addr_t taddr, size_t len, void* dst);
-  void write_chunk(addr_t taddr, size_t len, const void* src);
-  void clear_chunk(addr_t taddr, size_t len) {}
+  void read_chunk(addr_type taddr, size_t len, void* dst);
+  void write_chunk(addr_type taddr, size_t len, const void* src);
+  void clear_chunk(addr_type taddr, size_t len) {}
 
   size_t chunk_max_size() { return width; }
   size_t chunk_align() { return width; }

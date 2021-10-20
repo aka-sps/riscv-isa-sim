@@ -9,7 +9,7 @@ htif_hexwriter_t::htif_hexwriter_t(size_t b, size_t w, size_t d)
 {
 }
 
-void htif_hexwriter_t::read_chunk(addr_t taddr, size_t len, void* vdst)
+void htif_hexwriter_t::read_chunk(addr_type taddr, size_t len, void* vdst)
 {
   taddr -= base;
 
@@ -32,7 +32,7 @@ void htif_hexwriter_t::read_chunk(addr_t taddr, size_t len, void* vdst)
   }
 }
 
-void htif_hexwriter_t::write_chunk(addr_t taddr, size_t len, const void* vsrc)
+void htif_hexwriter_t::write_chunk(addr_type taddr, size_t len, const void* vsrc)
 {
   taddr -= base;
 
@@ -60,7 +60,7 @@ std::ostream& operator<< (std::ostream& o, const htif_hexwriter_t& h)
 
   for(size_t addr = 0; addr < h.depth; addr++)
   {
-    std::map<addr_t,std::vector<char> >::const_iterator i = h.mem.find(addr);
+    std::map<addr_type,std::vector<char> >::const_iterator i = h.mem.find(addr);
     if(i == h.mem.end())
       for(size_t j = 0; j < h.width; j++)
         o << "00";

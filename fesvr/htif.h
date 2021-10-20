@@ -56,9 +56,9 @@ class htif_t : public chunked_memif_t
  protected:
   virtual void reset() = 0;
 
-  virtual void read_chunk(addr_t taddr, size_t len, void* dst) = 0;
-  virtual void write_chunk(addr_t taddr, size_t len, const void* src) = 0;
-  virtual void clear_chunk(addr_t taddr, size_t len);
+  virtual void read_chunk(addr_type taddr, size_t len, void* dst) = 0;
+  virtual void write_chunk(addr_type taddr, size_t len, const void* src) = 0;
+  virtual void clear_chunk(addr_type taddr, size_t len);
 
   virtual size_t chunk_align() = 0;
   virtual size_t chunk_max_size() = 0;
@@ -73,7 +73,7 @@ class htif_t : public chunked_memif_t
 
   // indicates that the initial program load can skip writing this address
   // range to memory, because it has already been loaded through a sideband
-  virtual bool is_address_preloaded(addr_t taddr, size_t len) { return false; }
+  virtual bool is_address_preloaded(addr_type taddr, size_t len) { return false; }
 
   // Given an address, return symbol from addr2symbol map
   const char* get_symbol(uint64_t addr);
@@ -90,10 +90,10 @@ class htif_t : public chunked_memif_t
   std::vector<std::string> targs;
   std::string sig_file;
   unsigned int line_size;
-  addr_t sig_addr; // torture
-  addr_t sig_len; // torture
-  addr_t tohost_addr;
-  addr_t fromhost_addr;
+  addr_type sig_addr; // torture
+  addr_type sig_len; // torture
+  addr_type tohost_addr;
+  addr_type fromhost_addr;
   int exitcode;
   bool stopped;
 

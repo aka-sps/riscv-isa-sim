@@ -40,7 +40,7 @@ class syscall_t : public device_t
   fds_t fds;
 
   void handle_syscall(command_t cmd);
-  void dispatch(addr_t mm);
+  void dispatch(addr_type mm);
 
   std::string chroot;
   std::string do_chroot(const char* fn);

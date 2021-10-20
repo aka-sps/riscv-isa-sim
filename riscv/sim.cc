@@ -388,14 +388,14 @@ void sim_t::idle()
   target.switch_to();
 }
 
-void sim_t::read_chunk(addr_t taddr, size_t len, void* dst)
+void sim_t::read_chunk(addr_type taddr, size_t len, void* dst)
 {
   assert(len == 8);
   auto data = debug_mmu->to_target(debug_mmu->load_uint64(taddr));
   memcpy(dst, &data, sizeof data);
 }
 
-void sim_t::write_chunk(addr_t taddr, size_t len, const void* src)
+void sim_t::write_chunk(addr_type taddr, size_t len, const void* src)
 {
   assert(len == 8);
   target_endian<uint64_t> data;

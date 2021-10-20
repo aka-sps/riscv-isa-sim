@@ -109,7 +109,7 @@ std::map<std::string, uint64_t> htif_t::load_payload(const std::string& payload,
    public:
     preload_aware_memif_t(htif_t* htif) : memif_t(htif), htif(htif) {}
 
-    void write(addr_t taddr, size_t len, const void* src) override
+    void write(addr_type taddr, size_t len, const void* src) override
     {
       if (!htif->is_address_preloaded(taddr, len))
         memif_t::write(taddr, len, src);
@@ -177,9 +177,9 @@ void htif_t::stop()
     assert(sigs && "can't open signature file!");
     sigs << std::setfill('0') << std::hex;
 
-    for (addr_t i = 0; i < sig_len; i += line_size)
+    for (addr_type i = 0; i < sig_len; i += line_size)
     {
-      for (addr_t j = line_size; j > 0; j--)
+      for (addr_type j = line_size; j > 0; j--)
           if (i+j <= sig_len)
             sigs << std::setw(2) << (uint16_t)buf[i+j-1];
           else
@@ -193,7 +193,7 @@ void htif_t::stop()
   stopped = true;
 }
 
-void htif_t::clear_chunk(addr_t taddr, size_t len)
+void htif_t::clear_chunk(addr_type taddr, size_t len)
 {
   char zeros[chunk_max_size()];
   memset(zeros, 0, chunk_max_size());
