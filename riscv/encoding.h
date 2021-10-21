@@ -3,6 +3,8 @@
 #ifndef RISCV_CSR_ENCODING_H
 #define RISCV_CSR_ENCODING_H
 
+#define SCR_SETTINGS //undefine this, if you want to use MMU implementation of spike
+
 #define MSTATUS_UIE         0x00000001
 #define MSTATUS_SIE         0x00000002
 #define MSTATUS_HIE         0x00000004
@@ -2344,6 +2346,7 @@
 #define CSR_MHPMCOUNTER30H 0xb9e
 #define CSR_MHPMCOUNTER31H 0xb9f
 
+#ifdef SCR_SETTINGS
 #define CSR_MMU_TLB_ATTR 0xbc0
 #define CSR_MMU_TLB_VA 0xbc1
 #define CSR_MMU_TLB_UPDATE 0xbc2
@@ -2352,6 +2355,7 @@
 #define SWPW_R0_ADDR 0xfd0
 #define SWPW_R1_ADDR 0xfd1
 #define SWPW_R2_ADDR 0xfd2
+#endif
 
 #define CSR_MPUSELECT 0xbc4
 #define CSR_MPUCONTROL 0xbc5
@@ -3274,10 +3278,12 @@ DECLARE_INSN(vl4r_v, MATCH_VL4R_V, MASK_VL4R_V)
 DECLARE_INSN(vl8r_v, MATCH_VL8R_V, MASK_VL8R_V)
 #endif
 #ifdef DECLARE_CSR
+#ifdef SCR_SETTINGS
 DECLARE_CSR(mmutlbattr, CSR_MMU_TLB_ATTR)
 DECLARE_CSR(mmutlbvaddr, CSR_MMU_TLB_VA)
 DECLARE_CSR(mmutlbupd, CSR_MMU_TLB_UPDATE)
 DECLARE_CSR(mmutlbscan, CSR_MMU_TLB_SCAN)
+#endif
 DECLARE_CSR(mpuselect, CSR_MPUSELECT)
 DECLARE_CSR(mpucontrol, CSR_MPUCONTROL)
 DECLARE_CSR(mpuaddress, CSR_MPUADDRESS)

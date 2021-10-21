@@ -28,7 +28,11 @@ processor_t::processor_t(const char* isa, const char* priv, const char* varch,
   : debug(false), halt_request(HR_NONE), sim(sim), ext(NULL), id(id), xlen(0),
   histogram_enabled(false), log_commits_enabled(false),
   log_file(log_file), halt_on_reset(halt_on_reset),
+  #ifdef SCR_SETTINGS
   extension_table(64, false), impl_table(64, false), last_pc(1), executions(1)
+  #else
+  extension_table(256, false), impl_table(256, false), last_pc(1), executions(1)
+  #endif
 {
   VU.p = this;
 
@@ -812,7 +816,11 @@ void processor_t::disasm(insn_t insn)
 int processor_t::paddr_bits()
 {
   assert(xlen == max_xlen);
+  #ifdef SCR_SETTINGS
   return max_xlen == 64 ? 44 : 20; //  26/9/9 for 64; 10/10 for 32
+  #else
+  return max_xlen == 64 ? 50 : 34;
+  #endif
 }
 
 reg_t processor_t::cal_satp(reg_t val) const
@@ -822,15 +830,28 @@ reg_t processor_t::cal_satp(reg_t val) const
   reg_t rv64_ppn_mask = (reg_t(1) << (MAX_PADDR_BITS - PGSHIFT)) - 1;
   mmu->flush_tlb();
   if (max_xlen == 32) {
+    #ifdef SCR_SETTINGS
     reg_val = val & (SCR_SATP32_PPN |
                     (supports_impl(IMPL_MMU_SV32) ? SCR_SATP32_MODE : 0));
+    #else
+    reg_val = val & (SATP32_PPN |
+                    (supports_impl(IMPL_MMU_SV32) ? SATP32_MODE : 0));
+    #endif
   }
-
+  #ifdef SCR_SETTINGS
   if (max_xlen == 64 && (get_field(val, SCR_SATP64_MODE) == SATP_MODE_OFF ||
                          get_field(val, SCR_SATP64_MODE) == SATP_MODE_SV39 ||
                          get_field(val, SCR_SATP64_MODE) == SATP_MODE_SV48)) {
     reg_val = val & (SCR_SATP64_PPN | rv64_ppn_mask);
     reg_t mode = get_field(val, SCR_SATP64_MODE);
+  #else
+  if (max_xlen == 64 && (get_field(val, SATP64_MODE) == SATP_MODE_OFF ||
+                         get_field(val, SATP64_MODE) == SATP_MODE_SV39 ||
+                         get_field(val, SATP64_MODE) == SATP_MODE_SV48 ||
+                         get_field(val, SATP64_MODE) == SATP_MODE_SV57)) {
+    reg_val = val & (SATP64_PPN | rv64_ppn_mask);
+    reg_t mode = get_field(val, SATP64_MODE);
+  #endif
 
     switch(mode) {
       case SATP_MODE_OFF:
@@ -841,10 +862,14 @@ reg_t processor_t::cal_satp(reg_t val) const
         mode = supports_impl(IMPL_MMU_SV39) ? SATP_MODE_SV39 : SATP_MODE_OFF;
         break;
       case SATP_MODE_SV48:
-       mode = supports_impl(IMPL_MMU_SV48) ? SATP_MODE_SV48 : SATP_MODE_OFF;
+        mode = supports_impl(IMPL_MMU_SV48) ? SATP_MODE_SV48 : SATP_MODE_OFF;
       break;
     }
+    #ifdef SCR_SETTINGS
     reg_val = set_field(reg_val, SCR_SATP64_MODE, mode);
+    #else
+    reg_val = set_field(reg_val, SATP64_MODE, mode);
+    #endif
   }
   return reg_val;
 }
@@ -1312,7 +1337,7 @@ void processor_t::set_csr(int which, reg_t val)
     case CSR_MPUMASK:
       mpu->mask(val);
       break;
-
+    #ifdef SCR_SETTINGS
     // set MMU CSR values
     case CSR_MMU_TLB_ATTR:
       state.mmu_attr.v   = get_field(val, MMU_ATTR_V);
@@ -1353,7 +1378,8 @@ void processor_t::set_csr(int which, reg_t val)
       state.mmu_scan.index     = get_field(val, 0x1F);
       state.mmu_scan.sel       = get_field(val, 0x80000000);
       break;
-  
+    #endif
+
   }
 
 #if defined(RISCV_ENABLE_COMMITLOG)
@@ -1803,6 +1829,7 @@ reg_t processor_t::get_csr(int which, insn_t insn, bool write, bool peek)
       goto throw_illegal;
     case CSR_MEMCTRLGLOBAL:
       ret(0); //TODO: learn how ret works and implement 0xbd4 properly
+    #ifdef SCR_SETTINGS
     case CSR_MMU_TLB_ATTR:
     {
       if (state.v) {
@@ -1862,7 +1889,8 @@ reg_t processor_t::get_csr(int which, insn_t insn, bool write, bool peek)
       }else{
         ret(0);
       }
-    }  
+    }
+    #endif
   }
 
 #undef ret
