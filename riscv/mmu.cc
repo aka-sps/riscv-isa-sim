@@ -2,6 +2,7 @@
 
 #include "mmu.h"
 #include "arith.h"
+#include "mpu.h"
 #include "simif.h"
 #include "processor.h"
 
@@ -40,6 +41,7 @@ void mmu_t::flush_tlb()
 
 static void throw_access_exception(bool virt, reg_t addr, access_type type)
 {
+  //printf("          !!!! throw_access_exception %u\n", type);
   switch (type) {
     case FETCH: throw trap_instruction_access_fault(virt, addr, 0, 0);
     case LOAD: throw trap_load_access_fault(virt, addr, 0, 0);
@@ -50,8 +52,9 @@ static void throw_access_exception(bool virt, reg_t addr, access_type type)
 
 reg_t mmu_t::translate(reg_t addr, reg_t len, access_type type, uint32_t xlate_flags)
 {
-  if (!proc)
+  if (!proc) {
     return addr;
+  }
 
   bool virt = proc->state.v;
   bool hlvx = xlate_flags & RISCV_XLATE_VIRT_HLVX;
@@ -71,6 +74,9 @@ reg_t mmu_t::translate(reg_t addr, reg_t len, access_type type, uint32_t xlate_f
   reg_t paddr = walk(addr, type, mode, virt, hlvx) | (addr & (PGSIZE-1));
   if (!pmp_ok(paddr, len, type, mode))
     throw_access_exception(virt, addr, type);
+  if(!proc->get_mpu()->mpu_ok(paddr, len, type, mode))
+    throw_access_exception(virt, addr, type);
+
   return paddr;
 }
 
@@ -78,9 +84,12 @@ tlb_entry_t mmu_t::fetch_slow_path(reg_t vaddr)
 {
   reg_t paddr = translate(vaddr, sizeof(fetch_temp), FETCH, 0);
 
-  if (auto host_addr = sim->addr_to_mem(paddr)) {
+  auto host_addr = sim->addr_to_mem(paddr);
+  bool mpu_mmio = proc ? proc->get_mpu()->mpu_mmio(paddr, sizeof(fetch_temp)) : false;
+  if (host_addr && !mpu_mmio) { //not a bus device(host_addr isn't nil) and not a mpu configured mmio
     return refill_tlb(vaddr, paddr, host_addr, FETCH);
   } else {
+    //printf("          @@@@@ FETCH MMIO\n");
     if (!mmio_load(paddr, sizeof fetch_temp, (uint8_t*)&fetch_temp))
       throw trap_instruction_access_fault(proc->state.v, vaddr, 0, 0);
     tlb_entry_t entry = {(char*)&fetch_temp - vaddr, paddr - vaddr};
@@ -125,6 +134,7 @@ bool mmu_t::mmio_ok(reg_t addr, access_type type)
 
 bool mmu_t::mmio_load(reg_t addr, size_t len, uint8_t* bytes)
 {
+/*  printf("Howdy partner %d\n", proc->get_id()); */
   if (!mmio_ok(addr, LOAD))
     return false;
 
@@ -143,9 +153,11 @@ void mmu_t::load_slow_path(reg_t addr, reg_t len, uint8_t* bytes, uint32_t xlate
 {
   reg_t paddr = translate(addr, len, LOAD, xlate_flags);
 
-  if (auto host_addr = sim->addr_to_mem(paddr)) {
+  auto host_addr = sim->addr_to_mem(paddr);
+  bool mpu_mmio = proc ? proc->get_mpu()->mpu_mmio(paddr, sizeof(fetch_temp)) : false;
+  if (host_addr && !mpu_mmio) { //not a bus device(host_addr isn't nil) and not a mpu configured mmio
     memcpy(bytes, host_addr, len);
-    if (tracer.interested_in_range(paddr, paddr + PGSIZE, LOAD))
+    if (tracer.interested_in_range(paddr, paddr + PGSIZE, LOAD)) {
       tracer.trace(paddr, len, LOAD);
     else if (xlate_flags == 0)
       refill_tlb(addr, paddr, host_addr, LOAD);
@@ -161,6 +173,7 @@ void mmu_t::load_slow_path(reg_t addr, reg_t len, uint8_t* bytes, uint32_t xlate
   }
 }
 
+
 void mmu_t::store_slow_path(reg_t addr, reg_t len, const uint8_t* bytes, uint32_t xlate_flags)
 {
   reg_t paddr = translate(addr, len, STORE, xlate_flags);
@@ -172,9 +185,11 @@ void mmu_t::store_slow_path(reg_t addr, reg_t len, const uint8_t* bytes, uint32_
       throw *matched_trigger;
   }
 
-  if (auto host_addr = sim->addr_to_mem(paddr)) {
+  auto host_addr = sim->addr_to_mem(paddr);
+  bool mpu_mmio = proc ? proc->get_mpu()->mpu_mmio(paddr, sizeof(fetch_temp)) : false;
+  if (host_addr && !mpu_mmio) { //not a bus device(host_addr isn't nil) and not a mpu configured mmio
     memcpy(host_addr, bytes, len);
-    if (tracer.interested_in_range(paddr, paddr + PGSIZE, STORE))
+    if (tracer.interested_in_range(paddr, paddr + PGSIZE, STORE)) {
       tracer.trace(paddr, len, STORE);
     else if (xlate_flags == 0)
       refill_tlb(addr, paddr, host_addr, STORE);

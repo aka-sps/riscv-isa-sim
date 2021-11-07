@@ -18,6 +18,10 @@
 #include <sys/wait.h>
 #include <sys/types.h>
 
+extern reg_t mtimer_base;
+extern reg_t print_base;
+extern reg_t mpu_entries;
+
 volatile bool ctrlc_pressed = false;
 static void handle_signal(int sig)
 {
@@ -73,8 +77,9 @@ sim_t::sim_t(const char* isa, const char* priv, const char* varch,
   for (auto& x : mems)
     bus.add_device(x.first, x.second);
 
-  for (auto& x : plugin_devices)
+  for (auto& x : plugin_devices) {
     bus.add_device(x.first, x.second);
+  }
 
   debug_module.add_device(&bus);
 
@@ -98,12 +103,35 @@ sim_t::sim_t(const char* isa, const char* priv, const char* varch,
 
   void *fdt = (void *)dtb.c_str();
   //handle clic
+
   clint.reset(new clint_t(procs, CPU_HZ / INSNS_PER_RTC_TICK, real_time_clint));
   reg_t clint_base;
   if (fdt_parse_clint(fdt, &clint_base, "riscv,clint0")) {
     bus.add_device(CLINT_BASE, clint.get());
   } else {
     bus.add_device(clint_base, clint.get());
+  }
+  
+  if (mtimer_base == 0) {
+    clint.reset(new clint_t(procs, CPU_HZ / INSNS_PER_RTC_TICK, real_time_clint));
+    reg_t clint_base;
+    if (fdt_parse_clint((void *)dtb.c_str(), &clint_base, "riscv,clint0")) {
+      bus.add_device(CLINT_BASE, clint.get());
+    } else {
+      bus.add_device(clint_base, clint.get());
+    }
+  }
+
+  //handle mm mtimer
+  mtimer.reset(new mtimer_device_t(procs)); //timer is always present but not always available
+  if (mtimer_base != 0) { //only add timer to bus if it was explicitly set through a parameter
+    bus.add_device(mtimer_base, mtimer.get());
+  }
+
+  //handle print
+  if (print_base != 0) {
+    print.reset(new print_device_t());
+    bus.add_device(print_base, print.get());
   }
 
   //per core attribute
@@ -140,7 +168,9 @@ sim_t::sim_t(const char* isa, const char* priv, const char* varch,
         procs[cpu_idx]->set_mmu_capability(IMPL_MMU_SV39);
       } else if (strncmp(mmu_type, "riscv,sv48", strlen("riscv,sv48")) == 0) {
         procs[cpu_idx]->set_mmu_capability(IMPL_MMU_SV48);
-      } else if (strncmp(mmu_type, "riscv,sbare", strlen("riscv,sbare")) == 0) {
+      } else if (strncmp(mmu_type, "riscv,sv57", strlen("riscv,sv57")) == 0) {
+        procs[cpu_idx]->set_mmu_capability(IMPL_MMU_SV57);
+      } else if (strncmp(mmu_type, "riscv,bare", strlen("riscv,bare")) == 0) {
         //has been set in the beginning
       } else {
         std::cerr << "core ("
@@ -203,17 +233,20 @@ void sim_t::step(size_t n)
 {
   for (size_t i = 0, steps = 0; i < n; i += steps)
   {
+    mtimer->increment(1);
     steps = std::min(n - i, INTERLEAVE - current_step);
     procs[current_proc]->step(steps);
 
     current_step += steps;
     if (current_step == INTERLEAVE)
     {
+//      mtimer->increment(INTERLEAVE / INSNS_PER_RTC_TICK); /* XXX */
       current_step = 0;
       procs[current_proc]->get_mmu()->yield_load_reservation();
       if (++current_proc == procs.size()) {
         current_proc = 0;
-        clint->increment(INTERLEAVE / INSNS_PER_RTC_TICK);
+        if (mtimer_base == 0)
+          clint->increment(INTERLEAVE / INSNS_PER_RTC_TICK);
       }
 
       host->switch_to();
@@ -269,14 +302,32 @@ bool sim_t::mmio_load(reg_t addr, size_t len, uint8_t* bytes)
 {
   if (addr + len < addr || !paddr_ok(addr + len - 1))
     return false;
-  return bus.load(addr, len, bytes);
+  bool from_bus = bus.load(addr, len, bytes);
+  if(!from_bus){
+    //check if device is defined in MPU
+    if (procs.size()) {
+      mpu_t* mpu = procs[current_proc]->get_mpu();
+      if (mpu->mpu_mmio(addr, len))
+        return mtimer->load(addr - mpu->get_mmio_base(addr), len, bytes);
+    }
+  }
+  return from_bus;
 }
 
 bool sim_t::mmio_store(reg_t addr, size_t len, const uint8_t* bytes)
 {
   if (addr + len < addr || !paddr_ok(addr + len - 1))
     return false;
-  return bus.store(addr, len, bytes);
+  bool from_bus = bus.store(addr, len, bytes);
+  if(!from_bus){
+    //check if device is defined in MPU
+    if (procs.size()) {
+      mpu_t* mpu = procs[current_proc]->get_mpu();
+      if (mpu->mpu_mmio(addr, len))
+        return mtimer->store(addr - mpu->get_mmio_base(addr), len, bytes);
+    }
+  }
+  return from_bus;
 }
 
 void sim_t::make_dtb()
@@ -360,7 +411,8 @@ void sim_t::set_rom()
   bus.add_device(DEFAULT_RSTVEC, boot_rom.get());
 }
 
-char* sim_t::addr_to_mem(reg_t addr) {
+char* sim_t::addr_to_mem(reg_t addr)
+{
   if (!paddr_ok(addr))
     return NULL;
   auto desc = bus.find_device(addr);

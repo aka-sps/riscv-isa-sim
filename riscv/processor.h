@@ -6,6 +6,7 @@
 #include "config.h"
 #include "trap.h"
 #include "abstract_device.h"
+#include "mpu.h"
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -17,6 +18,7 @@
 
 class processor_t;
 class mmu_t;
+class mpu_t;
 typedef reg_t (*insn_func_t)(processor_t*, insn_t, reg_t);
 class simif_t;
 class trap_t;
@@ -257,7 +259,8 @@ typedef enum {
   IMPL_MMU_SV32,
   IMPL_MMU_SV39,
   IMPL_MMU_SV48,
-  IMPL_MMU_SBARE,
+  IMPL_MMU_SV57,
+  IMPL_MMU_BARE,
   IMPL_MMU,
 } impl_extension_t;
 
@@ -292,6 +295,7 @@ public:
   reg_t get_csr(int which, insn_t insn, bool write, bool peek = 0);
   reg_t get_csr(int which) { return get_csr(which, insn_t(0), false, true); }
   mmu_t* get_mmu() { return mmu; }
+  mpu_t* get_mpu() { return mpu; }
   state_t* get_state() { return &state; }
   unsigned get_xlen() { return xlen; }
   unsigned get_const_xlen() {
@@ -456,6 +460,7 @@ public:
 private:
   simif_t* sim;
   mmu_t* mmu; // main memory is always accessed via the mmu
+  mpu_t* mpu;
   std::unordered_map<std::string, extension_t*> custom_extensions;
   disassembler_t* disassembler;
   state_t state;
@@ -491,6 +496,7 @@ private:
   friend class mmu_t;
   friend class clint_t;
   friend class extension_t;
+  friend class mtimer_device_t;
 
   void parse_varch_string(const char*);
   void parse_priv_string(const char*);

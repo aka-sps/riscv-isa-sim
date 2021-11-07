@@ -9,6 +9,7 @@
 #include "mmu.h"
 #include "disasm.h"
 #include "platform.h"
+#include "mpu.h"
 #include <cinttypes>
 #include <cmath>
 #include <cstdlib>
@@ -38,6 +39,7 @@ processor_t::processor_t(const char* isa, const char* priv, const char* varch,
   parse_varch_string(varch);
 
   register_base_instructions();
+  mpu = new mpu_t(sim, this, mpu_entries);
   mmu = new mmu_t(sim, this);
 
   disassembler = new disassembler_t(max_xlen);
@@ -51,7 +53,7 @@ processor_t::processor_t(const char* isa, const char* priv, const char* varch,
   if (max_xlen == 32)
     set_mmu_capability(IMPL_MMU_SV32);
   else if (max_xlen == 64)
-    set_mmu_capability(IMPL_MMU_SV48);
+    set_mmu_capability(IMPL_MMU_SV57);
 
   reset();
 }
@@ -708,10 +710,17 @@ void processor_t::set_mmu_capability(int cap)
       set_impl(IMPL_MMU_SV39, true);
       set_impl(IMPL_MMU, true);
       break;
+    case IMPL_MMU_SV57:
+      set_impl(cap, true);
+      set_impl(IMPL_MMU_SV48, true);
+      set_impl(IMPL_MMU_SV39, true);
+      set_impl(IMPL_MMU, true);
+      break;
     default:
       set_impl(IMPL_MMU_SV32, false);
       set_impl(IMPL_MMU_SV39, false);
       set_impl(IMPL_MMU_SV48, false);
+      set_impl(IMPL_MMU_SV57, false);
       set_impl(IMPL_MMU, false);
       break;
   }
@@ -976,6 +985,43 @@ int processor_t::paddr_bits()
   return max_xlen == 64 ? 50 : 34;
 }
 
+reg_t processor_t::cal_satp(reg_t val) const
+{
+  reg_t reg_val = 0;
+  reg_t rv64_ppn_mask = (reg_t(1) << (MAX_PADDR_BITS - PGSHIFT)) - 1;
+  mmu->flush_tlb();
+  if (max_xlen == 32) {
+    reg_val = val & (SATP32_PPN |
+                    (supports_impl(IMPL_MMU_SV32) ? SATP32_MODE : 0));
+  }
+
+  if (max_xlen == 64 && (get_field(val, SATP64_MODE) == SATP_MODE_OFF ||
+                         get_field(val, SATP64_MODE) == SATP_MODE_SV39 ||
+                         get_field(val, SATP64_MODE) == SATP_MODE_SV48 ||
+                         get_field(val, SATP64_MODE) == SATP_MODE_SV57)) {
+    reg_val = val & (SATP64_PPN | rv64_ppn_mask);
+    reg_t mode = get_field(val, SATP64_MODE);
+
+    switch(mode) {
+      case SATP_MODE_OFF:
+      default:
+        mode = SATP_MODE_OFF;
+        break;
+      case SATP_MODE_SV39:
+        mode = supports_impl(IMPL_MMU_SV39) ? SATP_MODE_SV39 : SATP_MODE_OFF;
+        break;
+      case SATP_MODE_SV48:
+        mode = supports_impl(IMPL_MMU_SV48) ? SATP_MODE_SV48 : SATP_MODE_OFF;
+        break;
+      case SATP_MODE_SV57:
+        mode = supports_impl(IMPL_MMU_SV57) ? SATP_MODE_SV57 : SATP_MODE_OFF;
+        break;
+    }
+    reg_val = set_field(reg_val, SATP64_MODE, mode);
+  }
+
+  return reg_val;
+}
 void processor_t::set_csr(int which, reg_t val)
 {
   val = zext_xlen(val);
