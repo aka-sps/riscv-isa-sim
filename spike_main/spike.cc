@@ -18,7 +18,7 @@
 /* XXX */
 reg_t mtimer_base;
 reg_t print_base;
-reg_t mpu_entries = 16;
+extern reg_t mpu_entries;
 
 bool dbg;
 
@@ -171,6 +171,8 @@ static std::vector<std::pair<reg_t, mem_t*>> make_mems(const char* arg)
     if (!*p || *p != ':')
       help();
     auto size = strtoull(p + 1, &p, 0);
+
+    printf("==> MEM: %p %p\n", base, size);
 
     // page-align base and size
     auto base0 = base, size0 = size;

@@ -161,7 +161,7 @@ sim_t::sim_t(const char* isa, const char* priv, const char* varch,
     char mmu_type[256] = "";
     rc = fdt_parse_mmu_type(fdt, cpu_offset, mmu_type);
     if (rc == 0) {
-      procs[cpu_idx]->set_mmu_capability(IMPL_MMU_SBARE);
+      procs[cpu_idx]->set_mmu_capability(IMPL_MMU_BARE);
       if (strncmp(mmu_type, "riscv,sv32", strlen("riscv,sv32")) == 0) {
         procs[cpu_idx]->set_mmu_capability(IMPL_MMU_SV32);
       } else if (strncmp(mmu_type, "riscv,sv39", strlen("riscv,sv39")) == 0) {
@@ -219,6 +219,7 @@ void sim_t::main()
     if (remote_bitbang) {
       remote_bitbang->tick();
     }
+    usleep(0);
   }
 }
 

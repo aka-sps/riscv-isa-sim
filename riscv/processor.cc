@@ -24,6 +24,8 @@
 #undef STATE
 #define STATE state
 
+reg_t mpu_entries = 16;
+
 processor_t::processor_t(const char* isa, const char* priv, const char* varch,
                          simif_t* sim, uint32_t id, bool halt_on_reset,
                          FILE* log_file, std::ostream& sout_)

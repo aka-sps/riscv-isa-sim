@@ -159,8 +159,9 @@ void mmu_t::load_slow_path(reg_t addr, reg_t len, uint8_t* bytes, uint32_t xlate
     memcpy(bytes, host_addr, len);
     if (tracer.interested_in_range(paddr, paddr + PGSIZE, LOAD)) {
       tracer.trace(paddr, len, LOAD);
-    else if (xlate_flags == 0)
+    } else if (xlate_flags == 0) {
       refill_tlb(addr, paddr, host_addr, LOAD);
+    }
   } else if (!mmio_load(paddr, len, bytes)) {
     throw trap_load_access_fault((proc) ? proc->state.v : false, addr, 0, 0);
   }
@@ -191,8 +192,9 @@ void mmu_t::store_slow_path(reg_t addr, reg_t len, const uint8_t* bytes, uint32_
     memcpy(host_addr, bytes, len);
     if (tracer.interested_in_range(paddr, paddr + PGSIZE, STORE)) {
       tracer.trace(paddr, len, STORE);
-    else if (xlate_flags == 0)
+    } else if (xlate_flags == 0) {
       refill_tlb(addr, paddr, host_addr, STORE);
+    }
   } else if (!mmio_store(paddr, len, bytes)) {
     throw trap_store_access_fault((proc) ? proc->state.v : false, addr, 0, 0);
   }
@@ -226,7 +228,11 @@ tlb_entry_t mmu_t::refill_tlb(reg_t vaddr, reg_t paddr, char* host_addr, access_
     else tlb_load_tag[idx] = expected_tag;
   }
 
-  tlb_data[idx] = entry;
+  if (type == FETCH) {
+    tlb_code[idx] = entry;
+  } else {
+    tlb_data[idx] = entry;
+  }
   return entry;
 }
 

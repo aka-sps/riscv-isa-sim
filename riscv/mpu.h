@@ -11,6 +11,7 @@
 #include "processor.h"
 #include "memtracer.h"
 #include "byteorder.h"
+#include "csrs.h"
 #include <stdlib.h>
 #include <vector>
 

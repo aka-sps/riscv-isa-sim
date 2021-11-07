@@ -11,6 +11,7 @@
 #include <map>
 #include <vector>
 #include <assert.h>
+#include <unistd.h>
 
 class htif_t : public chunked_memif_t
 {
@@ -65,7 +66,7 @@ class htif_t : public chunked_memif_t
 
   virtual std::map<std::string, uint64_t> load_payload(const std::string& payload, reg_t* entry);
   virtual void load_program();
-  virtual void idle() {}
+  virtual void idle() {usleep(0);}
 
   const std::vector<std::string>& host_args() { return hargs; }
 

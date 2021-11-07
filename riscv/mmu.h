@@ -432,8 +432,9 @@ private:
   // ITLB lookup
   inline tlb_entry_t translate_insn_addr(reg_t addr) {
     reg_t vpn = addr >> PGSHIFT;
-    if (likely(tlb_insn_tag[vpn % TLB_ENTRIES] == vpn))
+    if (likely(tlb_insn_tag[vpn % TLB_ENTRIES] == vpn)) {
       return tlb_code[vpn % TLB_ENTRIES];
+    }
     tlb_entry_t result;
     if (unlikely(tlb_insn_tag[vpn % TLB_ENTRIES] != (vpn | TLB_CHECK_TRIGGERS))) {
       result = fetch_slow_path(addr);

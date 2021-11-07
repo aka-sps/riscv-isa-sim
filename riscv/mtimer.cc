@@ -35,7 +35,7 @@ bool mtimer_device_t::store(reg_t addr, size_t len, const uint8_t *bytes)
     status &= ~INT_PENDING;
 //    printf("DEASSERTING INTERRUPT\t%d\t%d\n", mr.timer == mr.compare, status & INT_PENDING);
     for (i = 0; i < procs.size(); i++)
-      procs[i]->state.mip &= ~MIP_MTIP;
+      procs[i]->state.mip->backdoor_write_with_mask(MIP_MTIP, 0);
   }
   memcpy((unsigned char *)&mr + addr, bytes, len); /* FIXME: cast */
 /* zero out reserved values */
@@ -78,10 +78,10 @@ void mtimer_device_t::increment(reg_t howmuch)
 //    printf("ASSERTING INTERRUPT\t%d\t%d\n", mr.timer == mr.compare, status & INT_PENDING);
     status |= INT_PENDING;
     for (i = 0; i < procs.size(); i++)
-      procs[i]->state.mip |= MIP_MTIP;
+      procs[i]->state.mip->backdoor_write_with_mask(MIP_MTIP, MIP_MTIP);
   } else {
     for (i = 0; i < procs.size(); i++)
-      procs[i]->state.mip &= ~MIP_MTIP;
+      procs[i]->state.mip->backdoor_write_with_mask(MIP_MTIP, 0);
   }
   return;
 }
