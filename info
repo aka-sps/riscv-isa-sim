@@ -1,5 +1,0 @@
-RTL:
-scrx_cluster:
-remote: https://github.com/ar-sc/riscv-isa-sim
-branch: sc_tests
-commit: f606c582748c6f7e5c296e7a882194ea6d47396e

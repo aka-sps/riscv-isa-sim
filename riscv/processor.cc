@@ -10,6 +10,7 @@
 #include "disasm.h"
 #include "platform.h"
 #include "mpu.h"
+#include "sc_csrs.h"
 #include <cinttypes>
 #include <cmath>
 #include <cstdlib>
@@ -536,6 +537,14 @@ void state_t::reset(processor_t* const proc, reg_t max_isa)
   csrmap[CSR_MIMPID] = std::make_shared<const_csr_t>(proc, CSR_MIMPID, 0);
   csrmap[CSR_MVENDORID] = std::make_shared<const_csr_t>(proc, CSR_MVENDORID, 0);
   csrmap[CSR_MHARTID] = std::make_shared<const_csr_t>(proc, CSR_MHARTID, proc->get_id());
+
+/* SC CSRS */
+  csrmap[CSR_MPUSELECT] = std::make_shared<mpu_csr_t>(proc, CSR_MPUSELECT);
+  csrmap[CSR_MPUCONTROL] = std::make_shared<mpu_csr_t>(proc, CSR_MPUCONTROL);
+  csrmap[CSR_MPUADDRESS] = std::make_shared<mpu_csr_t>(proc, CSR_MPUADDRESS);
+  csrmap[CSR_MPUMASK] = std::make_shared<mpu_csr_t>(proc, CSR_MPUMASK);
+
+  csrmap[CSR_MEMCTRLGLOBAL] = std::make_shared<l1ctrl_csr_t>(proc, CSR_MEMCTRLGLOBAL);
 
   serialized = false;
 
