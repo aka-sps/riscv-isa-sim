@@ -70,6 +70,7 @@ reg_t l1ctrl_csr_t::read() const noexcept {
 bool l1ctrl_csr_t::unlogged_write(const reg_t val) noexcept  {
   this->val = val;
   log_write();
+  return true;
 }
 
 
