@@ -29,11 +29,16 @@ bool mpu_t::is_enabled()
 
 void mpu_t::select(uint32_t sel)
 {
-  _select = sel % entries;
+  if (is_enabled()) {
+    _select = sel % entries;
+  }
 }
 
 void mpu_t::control(uint32_t ctrl)
 {
+  if (!is_enabled()) {
+    return;
+  }
   if (_control[_select] & MPU_LOCK)
         return;
   if ((ctrl & MPU_MTYPE) == MTYPE_MMIO_NC_SO)
@@ -44,6 +49,9 @@ void mpu_t::control(uint32_t ctrl)
 
 void mpu_t::address(reg_t addr)
 {
+  if (!is_enabled()) {
+    return;
+  }
   if (_control[_select] & MPU_LOCK)
     return;
   if (proc->get_xlen() == 32) {
@@ -55,6 +63,9 @@ void mpu_t::address(reg_t addr)
 
 void mpu_t::mask(reg_t mask)
 {
+  if (!is_enabled()) {
+    return;
+  }
   if (_control[_select] & MPU_LOCK)
     return;
   if (proc->get_xlen() == 32) {
@@ -69,18 +80,29 @@ uint32_t mpu_t::select()
   return _select;
 }
 
+// TODO: if mpu not enabled throw exception
+
 uint32_t mpu_t::control()
 {
+  if (!is_enabled()) {
+    return 0;
+  }
   return _control[_select];
 }
 
 reg_t mpu_t::address()
 {
+  if (!is_enabled()) {
+    return 0;
+  }
   return _address[_select];
 }
 
 reg_t mpu_t::mask()
 {
+  if (!is_enabled()) {
+    return 0;
+  }
   return _mask[_select];
 }
 
