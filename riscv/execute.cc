@@ -225,6 +225,7 @@ bool processor_t::slow_path()
 void processor_t::step(size_t n)
 {
   int i;
+  unsigned long r = 0;
 
   if (!state.debug_mode) {
     if (halt_request == HR_REGULAR) {
@@ -241,6 +242,8 @@ void processor_t::step(size_t n)
     size_t instret = 0;
     reg_t pc = state.pc;
     mmu_t* _mmu = mmu;
+    char log_str[80];
+    char *str_p = log_str;
 
 /* not really a place for this? */
     #define advance_pc() \
@@ -290,8 +293,12 @@ void processor_t::step(size_t n)
           insn_fetch_t fetch = mmu->load_insn(pc);
           if (debug && !state.serialized)
             disasm(fetch.insn);
+          
+          str_p += sprintf(str_p, "CLK R E %016" PRIx64 " %08" PRIx64, state.pc, fetch.insn.bits());
+          
           pc = execute_insn(this, pc, fetch);
           advance_pc();
+          r = fetch.insn.rd();
         }
       }
       else while (instret < n)
@@ -395,5 +402,9 @@ void processor_t::step(size_t n)
 
     state.minstret += instret;
     n -= instret;
+    
+    str_p += sprintf(str_p, "%016" PRIx64 " %4s=%016" PRIx64, pc, xpr_name[r], state.XPR[r] );
+    fprintf(stderr, "%s\n", log_str); 
+
   }
 }
