@@ -1487,6 +1487,10 @@ reg_t processor_t::get_csr(int which, insn_t insn, bool write, bool peek)
       if (!ctr_v_ok)
         goto throw_virtual;
       ret(state.minstret);
+    case CSR_TIME:
+      struct timespec ts;
+      clock_gettime(CLOCK_MONOTONIC, &ts);
+      ret(ts.tv_sec * 1000000000LL + ts.tv_nsec);
     case CSR_MINSTRET:
     case CSR_MCYCLE:
       ret(state.minstret);
