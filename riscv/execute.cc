@@ -409,13 +409,13 @@ void processor_t::step(size_t n)
     if (syn_log)
     {
 #if 1
-    reg_t reg;
-    reg = state.XPR[r];
-    str_p += sprintf(str_p, " %016" PRIx64 " %4s=%016" PRIx64, pc, xpr_name[r], reg);
+      reg_t reg;
+      reg = state.XPR[r];
+      str_p += sprintf(str_p, " %016" PRIx64 " %4s=%016" PRIx64, pc, xpr_name[r], reg);
 #else
-    str_p += sprintf(str_p, " %016" PRIx64 " %4s=%016" PRIx64, pc, xpr_name[r], state.XPR[r] );
+      str_p += sprintf(str_p, " %016" PRIx64 " %4s=%016" PRIx64, pc, xpr_name[r], state.XPR[r] );
 #endif
-    fprintf(stderr, "%s\n", log_str); 
+      fprintf(log_file, "%s\n", log_str); 
     }
   }
 }
