@@ -11,6 +11,7 @@ extern volatile bool ctrlc_pressed;
 /* XXX */
 extern reg_t exit_addr;
 extern bool dbg;
+extern bool syn_log;
 
 #ifdef RISCV_ENABLE_COMMITLOG
 static void commit_log_reset(processor_t* p)
@@ -291,11 +292,14 @@ void processor_t::step(size_t n)
           }
 
           insn_fetch_t fetch = mmu->load_insn(pc);
-          if (debug && !state.serialized)
-            disasm(fetch.insn);
           
-          str_p += sprintf(str_p, "CLK R E %016" PRIx64 " %08" PRIx64, state.pc, fetch.insn.bits());
-          
+          if (syn_log) {
+            str_p += sprintf(str_p, "CLK R E %016" PRIx64 " %08" PRIx64, state.pc, fetch.insn.bits());
+          }
+          else {
+            if (debug && !state.serialized)
+              disasm(fetch.insn);
+          }
           pc = execute_insn(this, pc, fetch);
           advance_pc();
           r = fetch.insn.rd();
@@ -402,6 +406,8 @@ void processor_t::step(size_t n)
 
     state.minstret += instret;
     n -= instret;
+    if (syn_log)
+    {
 #if 1
     reg_t reg;
     reg = state.XPR[r];
@@ -410,5 +416,6 @@ void processor_t::step(size_t n)
     str_p += sprintf(str_p, " %016" PRIx64 " %4s=%016" PRIx64, pc, xpr_name[r], state.XPR[r] );
 #endif
     fprintf(stderr, "%s\n", log_str); 
+    }
   }
 }

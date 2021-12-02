@@ -21,7 +21,6 @@ reg_t print_base;
 reg_t mpu_entries = 16;
 
 bool dbg;
-// FIXME
 bool syn_log = false;
 
 static void help(int exit_code = 1)
@@ -375,9 +374,6 @@ int main(int argc, char** argv)
                 [&](const char* s){log_path = s;});
   parser.option(0, "syn_log", 0,
                 [&](const char* s){syn_log = true;});
-// FIXME
-  fprintf(stderr, "log = %d\n", log);
-  fprintf(stderr, "syn_log = %d\n", syn_log);
   
   auto argv1 = parser.parse(argv);
   std::vector<std::string> htif_args(argv1, (const char*const*)argv + argc);
