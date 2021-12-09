@@ -42,8 +42,8 @@ bool mtimer_device_t::store(reg_t addr, size_t len, const uint8_t *bytes)
   mr.control &= 3;
   mr.divider &= 0x3FF;
 /* reset timer on 'invasive' access? */
-  if ((addr < offsetof(struct mtreg, compare)) && (addr + len > offsetof(struct mtreg, divider)))
-    mr.timer = 0;
+//  if ((addr < offsetof(struct mtreg, compare)) && (addr + len > offsetof(struct mtreg, divider)))
+//    mr.timer = 0;
 
   return true;
 }
