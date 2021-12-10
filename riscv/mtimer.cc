@@ -12,6 +12,7 @@ mtimer_device_t::mtimer_device_t(std::vector<processor_t*>&  procs)
 {
 //  printf("INIT MTIM\n");
   mr.control = (1 << MTIM_CTL_EN) | (0 << MTIM_CTL_CLKSRC);
+  div = 0;
 }
 
 bool mtimer_device_t::load(reg_t addr, size_t len, uint8_t *bytes)
@@ -45,6 +46,10 @@ bool mtimer_device_t::store(reg_t addr, size_t len, const uint8_t *bytes)
 //  if ((addr < offsetof(struct mtreg, compare)) && (addr + len > offsetof(struct mtreg, divider)))
 //    mr.timer = 0;
 
+  // reset internal division counter by write access to timer or divider (by documentation)
+  if ((addr < offsetof(struct mtreg, compare)) && (addr + len >= offsetof(struct mtreg, divider)))
+      div = 0;
+    
   return true;
 }
 
@@ -56,7 +61,6 @@ void mtimer_device_t::increment(reg_t howmuch)
  * Fix this behavior, drop howmuch?
  */
   static struct timeval now, prev;
-  static unsigned div;
 
   size_t i;
 

@@ -104,6 +104,7 @@ class mtimer_device_t : public abstract_device_t {
   void increment(reg_t inc);
  private:
   std::vector<processor_t*>& procs;
+  unsigned div;
 };
 
 class print_device_t : public abstract_device_t {
