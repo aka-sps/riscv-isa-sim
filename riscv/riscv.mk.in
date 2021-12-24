@@ -61,6 +61,7 @@ riscv_srcs = \
 	jtag_dtm.cc \
 	mtimer.cc \
 	print.cc \
+	dprint.cc \
 	$(riscv_gen_srcs) \
 
 riscv_test_srcs =
