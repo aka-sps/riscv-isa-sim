@@ -76,7 +76,7 @@ static void help(int exit_code = 1)
   fprintf(stderr, "  --syn_mtimer          SCR mtimer base address\n");
   fprintf(stderr, "  --syn_print           SCR print device base address\n");
   fprintf(stderr, "  --mpu_entries         Number of MPU entries, MPU disabled if 0 [default: 16]\n");
-  fprintf(stderr, "  --enable_dyn_print    Enable dynamic print registers in external file\n");
+  fprintf(stderr, "  --dyn_print_file=<file> Enable dynamic print registers in external file\n");
 
   exit(exit_code);
 }
@@ -338,7 +338,7 @@ int main(int argc, char** argv)
   parser.option(0, "device", 1, device_parser);
   parser.option(0, "extension", 1, [&](const char* s){extension = find_extension(s);});
   parser.option(0, "dump-dts", 0, [&](const char *s){dump_dts = true;});
-  parser.option(0, "enable_dyn_print", 1, [&](const char *s){dyn_print_file = s; });
+  parser.option(0, "dyn_print_file", 1, [&](const char *s){dyn_print_file = s; });
   parser.option(0, "disable-dtb", 0, [&](const char *s){dtb_enabled = false;});
   parser.option(0, "dtb", 1, [&](const char *s){dtb_file = s;});
   parser.option(0, "kernel", 1, [&](const char* s){kernel = s;});
