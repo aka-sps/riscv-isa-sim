@@ -324,13 +324,19 @@ freg_t sim_t::get_freg(const std::vector<std::string>& args)
 
 void sim_t::interactive_vreg(const std::string& cmd, const std::vector<std::string>& args)
 {
+  const char *v;
+
   if (args.size() < 1)
     throw trap_interactive();
 
   int rstart = 0;
   int rend = NVPR;
   if (args.size() >= 2) {
-    rstart = strtol(args[1].c_str(), NULL, 0);
+    v = args[1].c_str();
+    if (v[0] != 'v') {
+        throw trap_interactive();
+    }
+    rstart = strtol(v + 1, NULL, 0);
     if (!(rstart >= 0 && rstart < NVPR)) {
       rstart = 0;
     } else {
