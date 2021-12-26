@@ -249,27 +249,33 @@ void processor_t::step(size_t n)
 
 /* not really a place for this? */
     #define advance_pc() \
-  if (unlikely(pc == exit_addr)) \
-    if ((exit_addr != 0) && dbg) {  \
-    printf("exit status:"); \
-    ctrlc_pressed = true; /* TODO: less dumb way to halt. This one does not work w/o -d. */ \
-    for (i = 10; i < 15; i++) \
-      printf("\t%lx", state.XPR[i]); \
-    printf("\n"); \
-    } \
-     if (unlikely(invalid_pc(pc))) { \
-       switch (pc) { \
-         case PC_SERIALIZE_BEFORE: state.serialized = true; break; \
-         case PC_SERIALIZE_AFTER: ++instret; break; \
-         case PC_SERIALIZE_WFI: n = ++instret; break; \
-         default: abort(); \
-       } \
-       pc = state.pc; \
-       break; \
-     } else { \
-       state.pc = pc; \
-       instret++; \
-     }
+      if (unlikely(pc == exit_addr)) \
+        if (exit_addr != 0) {  \
+          printf("exit status:"); \
+          ctrlc_pressed = true; \
+          for (i = 10; i < 15; i++) \
+            printf("\t%lx", state.XPR[i]); \
+          printf("\n"); \
+        } \
+      if (unlikely(invalid_pc(pc))) { \
+        switch (pc) { \
+          case PC_SERIALIZE_BEFORE: state.serialized = true; break; \
+          case PC_SERIALIZE_AFTER: ++instret; break; \
+          case PC_SERIALIZE_WFI: n = ++instret; break; \
+          default: abort(); \
+        } \
+        pc = state.pc; \
+        break; \
+      } else { \
+        state.pc = pc; \
+        instret++; \
+      } \
+      if (ctrlc_pressed) { \
+        if (!debug) { \
+          exit(0); \
+        } \
+        return; \
+      }
 
     try
     {

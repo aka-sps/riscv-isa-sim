@@ -212,10 +212,11 @@ void sim_t::main()
 
   while (!done())
   {
-    if (debug || ctrlc_pressed)
+    if (debug || ctrlc_pressed) {
       interactive();
-    else
+    } else {
       step(INTERLEAVE);
+    }
     if (remote_bitbang) {
       remote_bitbang->tick();
     }
@@ -237,6 +238,9 @@ void sim_t::step(size_t n)
     mtimer->increment(1);
     steps = std::min(n - i, INTERLEAVE - current_step);
     procs[current_proc]->step(steps);
+    if (ctrlc_pressed) {
+      return;
+    }
 
     current_step += steps;
     if (current_step == INTERLEAVE)
