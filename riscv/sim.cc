@@ -39,7 +39,7 @@ sim_t::sim_t(const char* isa, const char* priv, const char* varch,
              std::vector<int> const hartids,
              const debug_module_config_t &dm_config,
              const char *log_path,
-             bool dtb_enabled, const char *dtb_file)
+             bool dtb_enabled, const char *dtb_file, const char *dyn_print_file)
   : htif_t(args),
     mems(mems),
     plugin_devices(plugin_devices),
@@ -168,6 +168,11 @@ sim_t::sim_t(const char* isa, const char* priv, const char* varch,
                 << nprocs << ").\n";
       exit(1);
   }
+  
+  if (dyn_print_file) {
+      dyn_print_out = fopen(dyn_print_file, "w");
+  }
+      
 }
 
 sim_t::~sim_t()
@@ -175,6 +180,9 @@ sim_t::~sim_t()
   for (size_t i = 0; i < procs.size(); i++)
     delete procs[i];
   delete debug_mmu;
+  if (dyn_print_out) {
+      fclose(dyn_print_out);
+  }
 }
 
 void sim_thread_main(void* arg)

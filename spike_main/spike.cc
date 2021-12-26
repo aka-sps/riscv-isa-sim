@@ -76,6 +76,7 @@ static void help(int exit_code = 1)
   fprintf(stderr, "  --syn_mtimer          SCR mtimer base address\n");
   fprintf(stderr, "  --syn_print           SCR print device base address\n");
   fprintf(stderr, "  --mpu_entries         Number of MPU entries, MPU disabled if 0 [default: 16]\n");
+  fprintf(stderr, "  --dyn_print_file=<file> Enable dynamic print registers in external file\n");
 
   exit(exit_code);
 }
@@ -217,6 +218,7 @@ int main(int argc, char** argv)
   bool log = false;
   bool dump_dts = false;
   bool dtb_enabled = true;
+  const char *dyn_print_file = NULL;
   bool real_time_clint = false;
   size_t nprocs = 1;
   const char* kernel = NULL;
@@ -336,6 +338,7 @@ int main(int argc, char** argv)
   parser.option(0, "device", 1, device_parser);
   parser.option(0, "extension", 1, [&](const char* s){extension = find_extension(s);});
   parser.option(0, "dump-dts", 0, [&](const char *s){dump_dts = true;});
+  parser.option(0, "dyn_print_file", 1, [&](const char *s){dyn_print_file = s; });
   parser.option(0, "disable-dtb", 0, [&](const char *s){dtb_enabled = false;});
   parser.option(0, "dtb", 1, [&](const char *s){dtb_file = s;});
   parser.option(0, "kernel", 1, [&](const char* s){kernel = s;});
@@ -408,7 +411,7 @@ int main(int argc, char** argv)
 
   sim_t s(isa, priv, varch, nprocs, halted, real_time_clint,
       initrd_start, initrd_end, bootargs, start_pc, mems, plugin_devices, htif_args,
-      std::move(hartids), dm_config, log_path, dtb_enabled, dtb_file);
+      std::move(hartids), dm_config, log_path, dtb_enabled, dtb_file, dyn_print_file);
   std::unique_ptr<remote_bitbang_t> remote_bitbang((remote_bitbang_t *) NULL);
   std::unique_ptr<jtag_dtm_t> jtag_dtm(
       new jtag_dtm_t(&s.debug_module, dmi_rti));

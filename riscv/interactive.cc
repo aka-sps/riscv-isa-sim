@@ -96,6 +96,8 @@ void sim_t::interactive()
     {
       set_procs_debug(true);
       step(1);
+      if (dyn_print_out)
+        dyn_print_info(dyn_print_out);
       continue;
     }
 

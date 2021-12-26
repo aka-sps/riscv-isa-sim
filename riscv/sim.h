@@ -30,7 +30,7 @@ public:
         std::vector<std::pair<reg_t, abstract_device_t*>> plugin_devices,
         const std::vector<std::string>& args, const std::vector<int> hartids,
         const debug_module_config_t &dm_config, const char *log_path,
-        bool dtb_enabled, const char *dtb_file);
+        bool dtb_enabled, const char *dtb_file, const char *dyn_print_file);
   ~sim_t();
 
   // run the simulation to completion
@@ -87,6 +87,7 @@ private:
   bool debug;
   bool histogram_enabled; // provide a histogram of PCs
   bool log;
+  FILE *dyn_print_out = NULL;
   remote_bitbang_t* remote_bitbang;
 
   // memory-mapped I/O routines
@@ -123,7 +124,11 @@ private:
   freg_t get_freg(const std::vector<std::string>& args);
   reg_t get_mem(const std::vector<std::string>& args);
   reg_t get_pc(const std::vector<std::string>& args);
-
+  
+  void dyn_print_mtimer_member(std::vector<std::string> &args, const char *name, 
+                               size_t size_of_member, size_t off_in_struct, FILE *out_regs, bool crlf);
+  void dyn_print_info(FILE* out_regs);
+  
   friend class processor_t;
   friend class mmu_t;
   friend class debug_module_t;
