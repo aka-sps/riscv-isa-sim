@@ -18,8 +18,8 @@
 #include <sys/wait.h>
 #include <sys/types.h>
 
-extern reg_t mtimer_base;
-extern reg_t print_base;
+reg_t mtimer_base;
+reg_t print_base;
 extern reg_t mpu_entries;
 
 volatile bool ctrlc_pressed = false;

@@ -16,8 +16,8 @@
 #include "../VERSION"
 
 /* XXX */
-reg_t mtimer_base;
-reg_t print_base;
+extern reg_t mtimer_base;
+extern reg_t print_base;
 extern reg_t mpu_entries;
 
 bool dbg;
