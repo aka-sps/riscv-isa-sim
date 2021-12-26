@@ -10,7 +10,7 @@ extern volatile bool ctrlc_pressed;
 
 /* XXX */
 extern reg_t exit_addr;
-extern bool dbg;
+extern bool dbg_rbb;
 
 #ifdef RISCV_ENABLE_COMMITLOG
 static void commit_log_reset(processor_t* p)
@@ -251,8 +251,10 @@ void processor_t::step(size_t n)
     #define advance_pc() \
       if (unlikely(pc == exit_addr)) \
         if (exit_addr != 0) {  \
+          if (!dbg_rbb) { \
+            ctrlc_pressed = true; \
+          } \
           printf("exit status:"); \
-          ctrlc_pressed = true; \
           for (i = 10; i < 15; i++) \
             printf("\t%lx", state.XPR[i]); \
           printf("\n"); \
@@ -271,9 +273,6 @@ void processor_t::step(size_t n)
         instret++; \
       } \
       if (ctrlc_pressed) { \
-        if (!debug) { \
-          exit(0); \
-        } \
         return; \
       }
 

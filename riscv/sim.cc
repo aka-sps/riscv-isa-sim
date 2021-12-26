@@ -21,6 +21,7 @@
 reg_t mtimer_base;
 reg_t print_base;
 extern reg_t mpu_entries;
+bool dbg_rbb = false;
 
 volatile bool ctrlc_pressed = false;
 static void handle_signal(int sig)
@@ -218,7 +219,12 @@ void sim_t::main()
       step(INTERLEAVE);
     }
     if (remote_bitbang) {
+      dbg_rbb = true;
       remote_bitbang->tick();
+    } else {
+      if (!debug && ctrlc_pressed) {
+        exit(0);
+      }
     }
     usleep(0);
   }
@@ -238,7 +244,7 @@ void sim_t::step(size_t n)
     mtimer->increment(1);
     steps = std::min(n - i, INTERLEAVE - current_step);
     procs[current_proc]->step(steps);
-    if (ctrlc_pressed) {
+    if (ctrlc_pressed && !dbg_rbb) {
       return;
     }
 

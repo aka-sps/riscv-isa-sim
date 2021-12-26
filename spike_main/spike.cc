@@ -20,8 +20,6 @@ extern reg_t mtimer_base;
 extern reg_t print_base;
 extern reg_t mpu_entries;
 
-bool dbg;
-
 static void help(int exit_code = 1)
 {
   fprintf(stderr, "Spike RISC-V ISA Simulator " SPIKE_VERSION "\n\n");
@@ -482,7 +480,6 @@ int main(int argc, char** argv)
       s.get_core(i)->register_extension(e());
   }
 
-  dbg = debug;
   s.set_debug(debug);
   s.configure_log(log, log_commits);
   s.set_histogram(histogram);
