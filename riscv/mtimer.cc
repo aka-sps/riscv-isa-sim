@@ -33,10 +33,18 @@ bool mtimer_device_t::store(reg_t addr, size_t len, const uint8_t *bytes)
   if (isbadaddr(addr, len) != 0)
     return false;
   if (addr >= offsetof(struct mtreg, compare)) {
-    status &= ~INT_PENDING;
+    // check needing to a clean the pending state: create shadow copy of mr and change it by input args
+    struct mtreg mr_shadow;
+    memcpy(&mr_shadow, &mr, sizeof(mr));
+    memcpy((unsigned char *)&mr_shadow + addr, bytes, len); /* FIXME: cast */
+    
+    // check timer < compare by documentation
+    if (mr_shadow.timer < mr_shadow.compare) {
+      status &= ~INT_PENDING;
 //    printf("DEASSERTING INTERRUPT\t%d\t%d\n", mr.timer == mr.compare, status & INT_PENDING);
-    for (i = 0; i < procs.size(); i++)
-      procs[i]->state.mip &= ~MIP_MTIP;
+      for (i = 0; i < procs.size(); i++)
+        procs[i]->state.mip &= ~MIP_MTIP;
+    }
   }
   memcpy((unsigned char *)&mr + addr, bytes, len); /* FIXME: cast */
 /* zero out reserved values */
