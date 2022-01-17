@@ -45,6 +45,7 @@ public:
   bool mpu_mmio(reg_t addr, reg_t len);
   reg_t get_mmio_base(reg_t addr);
   bool is_enabled();
+  reg_t get_cfg_region();
 
   void select(uint32_t);
   void control(uint32_t);

@@ -34,4 +34,13 @@ private:
   reg_t val;
 };
 
+class mtimer_csr_t: public csr_t {
+ public:
+  mtimer_csr_t(processor_t* const proc, const reg_t addr);
+  virtual reg_t read() const noexcept override final;
+  virtual bool unlogged_write(const reg_t val) noexcept;
+private:
+  reg_t val;
+};
+
 #endif

@@ -73,4 +73,23 @@ bool l1ctrl_csr_t::unlogged_write(const reg_t val) noexcept  {
   return true;
 }
 
+// implement class mtimer_csr_t
+mtimer_csr_t::mtimer_csr_t(processor_t* const proc, const reg_t addr):
+  csr_t(proc, addr) {
+  unlogged_write(0);
+}
 
+reg_t mtimer_csr_t::read() const noexcept {
+  uint8_t ret_val=0;
+  reg_t cfg_region = proc->get_mpu()->get_cfg_region();
+  if (cfg_region){
+    proc->get_sim()->mmio_load((proc->get_mpu()->get_cfg_region())+8UL, 8, &ret_val); //0x8 - address of MTIMER_MTIMELO, len 8 for loading from MTIMER_MTIMELO and MTIMER_MTIMEHI together
+  }
+  return (reg_t)ret_val;
+}
+
+bool mtimer_csr_t::unlogged_write(const reg_t val) noexcept  {
+  this->val = val;
+  log_write();
+  return true;
+}

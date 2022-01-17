@@ -546,6 +546,8 @@ void state_t::reset(processor_t* const proc, reg_t max_isa)
 
   csrmap[CSR_MEMCTRLGLOBAL] = std::make_shared<l1ctrl_csr_t>(proc, CSR_MEMCTRLGLOBAL);
 
+  csrmap[CSR_TIME] = std::make_shared<mtimer_csr_t>(proc, CSR_TIME);
+
   serialized = false;
 
 #ifdef RISCV_ENABLE_COMMITLOG
