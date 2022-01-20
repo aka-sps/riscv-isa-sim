@@ -73,4 +73,22 @@ bool l1ctrl_csr_t::unlogged_write(const reg_t val) noexcept  {
   return true;
 }
 
+// implement class mtimer_csr_t
+mtimer_csr_t::mtimer_csr_t(processor_t* const proc, const reg_t addr):
+  csr_t(proc, addr) {
+  unlogged_write(0);
+}
 
+reg_t mtimer_csr_t::read() const noexcept {
+  uint8_t ret_val=0;
+  if (static_cast<bool>(proc->get_sim()->get_mtimer())) {
+    proc->get_sim()->get_mtimer()->load(8, 8, &ret_val);
+  }
+  return (reg_t)ret_val;
+}
+
+bool mtimer_csr_t::unlogged_write(const reg_t val) noexcept  {
+  this->val = val;
+  log_write();
+  return true;
+}

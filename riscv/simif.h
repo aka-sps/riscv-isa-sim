@@ -4,6 +4,8 @@
 #define _RISCV_SIMIF_H
 
 #include "decode.h"
+#include "devices.h" //for mtimer_device_t
+#include <memory> //for std::shared_ptr
 
 // this is the interface to the simulator used by the processors and memory
 class simif_t
@@ -19,6 +21,7 @@ public:
 
   virtual const char* get_symbol(uint64_t addr) = 0;
 
+  virtual std::shared_ptr<mtimer_device_t> get_mtimer() = 0;
 };
 
 #endif
