@@ -75,18 +75,6 @@ void mpu_t::mask(reg_t mask)
   }
 }
 
-reg_t mpu_t::get_cfg_region()
-{
-  if (is_enabled()) {
-    for(int i=0; i<entries; i++){
-       if ((_control[i] & MPU_VALID) && ((_control[i] & MPU_MTYPE) == MTYPE_MMIO_NC_SO)){
-         return _address[i];
-      }
-    }
-  }
-  return 0;
-}
-
 uint32_t mpu_t::select()
 {
   return _select;

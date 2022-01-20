@@ -81,9 +81,8 @@ mtimer_csr_t::mtimer_csr_t(processor_t* const proc, const reg_t addr):
 
 reg_t mtimer_csr_t::read() const noexcept {
   uint8_t ret_val=0;
-  reg_t cfg_region = proc->get_mpu()->get_cfg_region();
-  if (cfg_region){
-    proc->get_sim()->mmio_load((proc->get_mpu()->get_cfg_region())+8UL, 8, &ret_val); //0x8 - address of MTIMER_MTIMELO, len 8 for loading from MTIMER_MTIMELO and MTIMER_MTIMEHI together
+  if (static_cast<bool>(proc->get_sim()->get_mtimer())) {
+    proc->get_sim()->get_mtimer()->load(8, 8, &ret_val);
   }
   return (reg_t)ret_val;
 }

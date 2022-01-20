@@ -69,6 +69,8 @@ public:
   // Callback for processors to let the simulation know they were reset.
   void proc_reset(unsigned id);
 
+  virtual std::shared_ptr<mtimer_device_t> get_mtimer() { return mtimer; }
+
 private:
   std::vector<std::pair<reg_t, mem_t*>> mems;
   std::vector<std::pair<reg_t, abstract_device_t*>> plugin_devices;
@@ -84,7 +86,7 @@ private:
   bool dtb_enabled;
   std::unique_ptr<rom_device_t> boot_rom;
   std::unique_ptr<clint_t> clint;
-  std::unique_ptr<mtimer_device_t> mtimer;
+  std::shared_ptr<mtimer_device_t> mtimer;
   std::unique_ptr<print_device_t> print;
   bus_t bus;
   log_file_t log_file;
