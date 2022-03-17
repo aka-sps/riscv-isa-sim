@@ -11,6 +11,10 @@ extern volatile bool ctrlc_pressed;
 /* XXX */
 extern reg_t exit_addr;
 extern bool dbg_rbb;
+/*20220317 memory dump feature */
+extern reg_t memory_to_dump_start;
+extern reg_t memory_to_dump_end;
+/*20220317 memory dump feature end*/
 
 #ifdef RISCV_ENABLE_COMMITLOG
 static void commit_log_reset(processor_t* p)
@@ -168,6 +172,13 @@ static void commit_log_stash_privilege(processor_t* p) {}
 static void commit_log_print_insn(processor_t* p, reg_t pc, insn_t insn) {}
 #endif
 
+static void commit_memory_dump_print_value(FILE *memory_dump_file)
+{
+   assert(memory_dump_file);
+   fprintf(memory_dump_file, "Hello it is the end of the log file");
+
+}
+
 inline void processor_t::update_histogram(reg_t pc)
 {
 #ifdef RISCV_ENABLE_HISTOGRAM
@@ -258,6 +269,7 @@ void processor_t::step(size_t n)
           for (i = 10; i < 15; i++) \
             printf("\t%lx", state.XPR[i]); \
           printf("\n"); \
+          commit_memory_dump_print_value(memory_dump_file); \
         } \
       if (unlikely(invalid_pc(pc))) { \
         switch (pc) { \

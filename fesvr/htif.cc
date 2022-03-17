@@ -19,19 +19,23 @@
 
 /* XXX */
 reg_t exit_addr;
+/*20220317 memory dump feature */
+reg_t memory_to_dump_start_addr;
+reg_t memory_to_dump_end_addr;
+/*20220317 memory dump feature end*/
 
 /* Attempt to determine the execution prefix automatically.  autoconf
  * sets PREFIX, and pconfigure sets __PCONFIGURE__PREFIX. */
 #if !defined(PREFIX) && defined(__PCONFIGURE__PREFIX)
-# define PREFIX __PCONFIGURE__PREFIX
+#define PREFIX __PCONFIGURE__PREFIX
 #endif
 
 #ifndef TARGET_ARCH
-# define TARGET_ARCH "riscv64-unknown-elf"
+#define TARGET_ARCH "riscv64-unknown-elf"
 #endif
 
 #ifndef TARGET_DIR
-# define TARGET_DIR "/" TARGET_ARCH "/bin/"
+#define TARGET_DIR "/" TARGET_ARCH "/bin/"
 #endif
 
 static volatile bool signal_exit = false;
@@ -44,32 +48,33 @@ static void handle_signal(int sig)
 }
 
 htif_t::htif_t()
-  : mem(this), entry(DRAM_BASE), sig_addr(0), sig_len(0),
-    tohost_addr(0), fromhost_addr(0), exitcode(0), stopped(false),
-    syscall_proxy(this)
+    : mem(this), entry(DRAM_BASE), sig_addr(0), sig_len(0),
+      tohost_addr(0), fromhost_addr(0), exitcode(0), stopped(false),
+      syscall_proxy(this)
 {
   signal(SIGINT, &handle_signal);
   signal(SIGTERM, &handle_signal);
   signal(SIGABRT, &handle_signal); // we still want to call static destructors
 }
 
-htif_t::htif_t(int argc, char** argv) : htif_t()
+htif_t::htif_t(int argc, char **argv) : htif_t()
 {
-  //Set line size as 16 by default.
+  // Set line size as 16 by default.
   line_size = 16;
   parse_arguments(argc, argv);
   register_devices();
 }
 
-htif_t::htif_t(const std::vector<std::string>& args) : htif_t()
+htif_t::htif_t(const std::vector<std::string> &args) : htif_t()
 {
   int argc = args.size() + 1;
-  char * argv[argc];
-  argv[0] = (char *) "htif";
-  for (unsigned int i = 0; i < args.size(); i++) {
-    argv[i+1] = (char *) args[i].c_str();
+  char *argv[argc];
+  argv[0] = (char *)"htif";
+  for (unsigned int i = 0; i < args.size(); i++)
+  {
+    argv[i + 1] = (char *)args[i].c_str();
   }
-  //Set line size as 16 by default.
+  // Set line size as 16 by default.
   line_size = 16;
   parse_arguments(argc, argv);
   register_devices();
@@ -84,12 +89,12 @@ htif_t::~htif_t()
 void htif_t::start()
 {
   if (!targs.empty() && targs[0] != "none")
-      load_program();
+    load_program();
 
   reset();
 }
 
-std::map<std::string, uint64_t> htif_t::load_payload(const std::string& payload, reg_t* entry)
+std::map<std::string, uint64_t> htif_t::load_payload(const std::string &payload, reg_t *entry)
 {
   std::string path;
   if (access(payload.c_str(), F_OK) == 0)
@@ -108,18 +113,19 @@ std::map<std::string, uint64_t> htif_t::load_payload(const std::string& payload,
 
   // temporarily construct a memory interface that skips writing bytes
   // that have already been preloaded through a sideband
-  class preload_aware_memif_t : public memif_t {
-   public:
-    preload_aware_memif_t(htif_t* htif) : memif_t(htif), htif(htif) {}
+  class preload_aware_memif_t : public memif_t
+  {
+  public:
+    preload_aware_memif_t(htif_t *htif) : memif_t(htif), htif(htif) {}
 
-    void write(addr_t taddr, size_t len, const void* src) override
+    void write(addr_t taddr, size_t len, const void *src) override
     {
       if (!htif->is_address_preloaded(taddr, len))
         memif_t::write(taddr, len, src);
     }
 
-   private:
-    htif_t* htif;
+  private:
+    htif_t *htif;
   } preload_aware_memif(this);
 
   return load_elf(path.c_str(), &preload_aware_memif, entry);
@@ -132,10 +138,20 @@ void htif_t::load_program()
   if (symbols.count("sc_exit"))
     exit_addr = symbols["sc_exit"];
 
-  if (symbols.count("tohost") && symbols.count("fromhost")) {
+  /*20220317 memory dump feature begin*/
+  if (symbols.count("memory_to_dump_start_addr"))
+    memory_to_dump_start_addr = symbols["memory_to_dump_start_addr"];
+  if (symbols.count("memory_to_dump_end_addr"))
+    memory_to_dump_end_addr = symbols["memory_to_dump_end_addr"];
+  /*20220317 memory dump feature end*/
+
+  if (symbols.count("tohost") && symbols.count("fromhost"))
+  {
     tohost_addr = symbols["tohost"];
     fromhost_addr = symbols["fromhost"];
-  } else {
+  }
+  else
+  {
     fprintf(stderr, "warning: tohost and fromhost symbols not in ELF; can't communicate with target\n");
   }
 
@@ -152,22 +168,22 @@ void htif_t::load_program()
     load_payload(payload, &dummy_entry);
   }
 
-   for (auto i : symbols)
-   {
-     auto it = addr2symbol.find(i.second);
-     if ( it == addr2symbol.end())
-       addr2symbol[i.second] = i.first;
-   }
+  for (auto i : symbols)
+  {
+    auto it = addr2symbol.find(i.second);
+    if (it == addr2symbol.end())
+      addr2symbol[i.second] = i.first;
+  }
 
-   return;
+  return;
 }
 
-const char* htif_t::get_symbol(uint64_t addr)
+const char *htif_t::get_symbol(uint64_t addr)
 {
   auto it = addr2symbol.find(addr);
 
-  if(it == addr2symbol.end())
-      return nullptr;
+  if (it == addr2symbol.end())
+    return nullptr;
 
   return it->second.c_str();
 }
@@ -186,10 +202,10 @@ void htif_t::stop()
     for (addr_t i = 0; i < sig_len; i += line_size)
     {
       for (addr_t j = line_size; j > 0; j--)
-          if (i+j <= sig_len)
-            sigs << std::setw(2) << (uint16_t)buf[i+j-1];
-          else
-            sigs << std::setw(2) << (uint16_t)0;
+        if (i + j <= sig_len)
+          sigs << std::setw(2) << (uint16_t)buf[i + j - 1];
+        else
+          sigs << std::setw(2) << (uint16_t)0;
       sigs << '\n';
     }
 
@@ -212,29 +228,35 @@ int htif_t::run()
 {
   start();
 
-  auto enq_func = [](std::queue<reg_t>* q, uint64_t x) { q->push(x); };
+  auto enq_func = [](std::queue<reg_t> *q, uint64_t x)
+  { q->push(x); };
   std::queue<reg_t> fromhost_queue;
   std::function<void(reg_t)> fromhost_callback =
-    std::bind(enq_func, &fromhost_queue, std::placeholders::_1);
+      std::bind(enq_func, &fromhost_queue, std::placeholders::_1);
 
-  if (tohost_addr == 0) {
+  if (tohost_addr == 0)
+  {
     while (true)
       idle();
   }
 
   while (!signal_exit && exitcode == 0)
   {
-    if (auto tohost = from_target(mem.read_uint64(tohost_addr))) {
+    if (auto tohost = from_target(mem.read_uint64(tohost_addr)))
+    {
       mem.write_uint64(tohost_addr, target_endian<uint64_t>::zero);
       command_t cmd(mem, tohost, fromhost_callback);
       device_list.handle_command(cmd);
-    } else {
+    }
+    else
+    {
       idle();
     }
 
     device_list.tick();
 
-    if (!fromhost_queue.empty() && !mem.read_uint64(fromhost_addr)) {
+    if (!fromhost_queue.empty() && !mem.read_uint64(fromhost_addr))
+    {
       mem.write_uint64(fromhost_addr, to_target(fromhost_queue.front()));
       fromhost_queue.pop();
     }
@@ -255,108 +277,128 @@ int htif_t::exit_code()
   return exitcode >> 1;
 }
 
-void htif_t::parse_arguments(int argc, char ** argv)
+void htif_t::parse_arguments(int argc, char **argv)
 {
   optind = 0; // reset optind as HTIF may run getopt _after_ others
-  while (1) {
-    static struct option long_options[] = { HTIF_LONG_OPTIONS };
+  while (1)
+  {
+    static struct option long_options[] = {HTIF_LONG_OPTIONS};
     int option_index = 0;
     int c = getopt_long(argc, argv, "-h", long_options, &option_index);
 
-    if (c == -1) break;
- retry:
-    switch (c) {
-      case 'h': usage(argv[0]);
-        throw std::invalid_argument("User queried htif_t help text");
-      case HTIF_LONG_OPTIONS_OPTIND:
-        if (optarg) dynamic_devices.push_back(new rfb_t(atoi(optarg)));
-        else        dynamic_devices.push_back(new rfb_t);
-        break;
-      case HTIF_LONG_OPTIONS_OPTIND + 1:
-        // [TODO] Remove once disks are supported again
-        throw std::invalid_argument("--disk/+disk unsupported (use a ramdisk)");
-        dynamic_devices.push_back(new disk_t(optarg));
-        break;
-      case HTIF_LONG_OPTIONS_OPTIND + 2:
-        sig_file = optarg;
-        break;
-      case HTIF_LONG_OPTIONS_OPTIND + 3:
-        syscall_proxy.set_chroot(optarg);
-        break;
-      case HTIF_LONG_OPTIONS_OPTIND + 4:
-        payloads.push_back(optarg);
-        break;
-      case HTIF_LONG_OPTIONS_OPTIND + 5:
-        line_size = atoi(optarg);
+    if (c == -1)
+      break;
+  retry:
+    switch (c)
+    {
+    case 'h':
+      usage(argv[0]);
+      throw std::invalid_argument("User queried htif_t help text");
+    case HTIF_LONG_OPTIONS_OPTIND:
+      if (optarg)
+        dynamic_devices.push_back(new rfb_t(atoi(optarg)));
+      else
+        dynamic_devices.push_back(new rfb_t);
+      break;
+    case HTIF_LONG_OPTIONS_OPTIND + 1:
+      // [TODO] Remove once disks are supported again
+      throw std::invalid_argument("--disk/+disk unsupported (use a ramdisk)");
+      dynamic_devices.push_back(new disk_t(optarg));
+      break;
+    case HTIF_LONG_OPTIONS_OPTIND + 2:
+      sig_file = optarg;
+      break;
+    case HTIF_LONG_OPTIONS_OPTIND + 3:
+      syscall_proxy.set_chroot(optarg);
+      break;
+    case HTIF_LONG_OPTIONS_OPTIND + 4:
+      payloads.push_back(optarg);
+      break;
+    case HTIF_LONG_OPTIONS_OPTIND + 5:
+      line_size = atoi(optarg);
 
+      break;
+    case '?':
+      if (!opterr)
         break;
-      case '?':
+      throw std::invalid_argument("Unknown argument (did you mean to enable +permissive parsing?)");
+    case 1:
+    {
+      std::string arg = optarg;
+      if (arg == "+h" || arg == "+help")
+      {
+        c = 'h';
+        optarg = nullptr;
+      }
+      else if (arg == "+rfb")
+      {
+        c = HTIF_LONG_OPTIONS_OPTIND;
+        optarg = nullptr;
+      }
+      else if (arg.find("+rfb=") == 0)
+      {
+        c = HTIF_LONG_OPTIONS_OPTIND;
+        optarg = optarg + 5;
+      }
+      else if (arg.find("+disk=") == 0)
+      {
+        c = HTIF_LONG_OPTIONS_OPTIND + 1;
+        optarg = optarg + 6;
+      }
+      else if (arg.find("+signature=") == 0)
+      {
+        c = HTIF_LONG_OPTIONS_OPTIND + 2;
+        optarg = optarg + 11;
+      }
+      else if (arg.find("+chroot=") == 0)
+      {
+        c = HTIF_LONG_OPTIONS_OPTIND + 3;
+        optarg = optarg + 8;
+      }
+      else if (arg.find("+payload=") == 0)
+      {
+        c = HTIF_LONG_OPTIONS_OPTIND + 4;
+        optarg = optarg + 9;
+      }
+      else if (arg.find("+signature-granularity=") == 0)
+      {
+        c = HTIF_LONG_OPTIONS_OPTIND + 5;
+        optarg = optarg + 23;
+      }
+      else if (arg.find("+permissive-off") == 0)
+      {
+        if (opterr)
+          throw std::invalid_argument("Found +permissive-off when not parsing permissively");
+        opterr = 1;
+        break;
+      }
+      else if (arg.find("+permissive") == 0)
+      {
+        if (!opterr)
+          throw std::invalid_argument("Found +permissive when already parsing permissively");
+        opterr = 0;
+        break;
+      }
+      else
+      {
         if (!opterr)
           break;
-        throw std::invalid_argument("Unknown argument (did you mean to enable +permissive parsing?)");
-      case 1: {
-        std::string arg = optarg;
-        if (arg == "+h" || arg == "+help") {
-          c = 'h';
-          optarg = nullptr;
+        else
+        {
+          optind--;
+          goto done_processing;
         }
-        else if (arg == "+rfb") {
-          c = HTIF_LONG_OPTIONS_OPTIND;
-          optarg = nullptr;
-        }
-        else if (arg.find("+rfb=") == 0) {
-          c = HTIF_LONG_OPTIONS_OPTIND;
-          optarg = optarg + 5;
-        }
-        else if (arg.find("+disk=") == 0) {
-          c = HTIF_LONG_OPTIONS_OPTIND + 1;
-          optarg = optarg + 6;
-        }
-        else if (arg.find("+signature=") == 0) {
-          c = HTIF_LONG_OPTIONS_OPTIND + 2;
-          optarg = optarg + 11;
-        }
-        else if (arg.find("+chroot=") == 0) {
-          c = HTIF_LONG_OPTIONS_OPTIND + 3;
-          optarg = optarg + 8;
-        }
-        else if (arg.find("+payload=") == 0) {
-          c = HTIF_LONG_OPTIONS_OPTIND + 4;
-          optarg = optarg + 9;
-        }
-        else if(arg.find("+signature-granularity=")==0){
-            c = HTIF_LONG_OPTIONS_OPTIND + 5;
-            optarg = optarg + 23;
-        }
-        else if (arg.find("+permissive-off") == 0) {
-          if (opterr)
-            throw std::invalid_argument("Found +permissive-off when not parsing permissively");
-          opterr = 1;
-          break;
-        }
-        else if (arg.find("+permissive") == 0) {
-          if (!opterr)
-            throw std::invalid_argument("Found +permissive when already parsing permissively");
-          opterr = 0;
-          break;
-        }
-        else {
-          if (!opterr)
-            break;
-          else {
-            optind--;
-            goto done_processing;
-          }
-        }
-        goto retry;
       }
+      goto retry;
+    }
     }
   }
 
 done_processing:
   while (optind < argc)
     targs.push_back(argv[optind++]);
-  if (!targs.size()) {
+  if (!targs.size())
+  {
     usage(argv[0]);
     throw std::invalid_argument("No binary specified (Did you forget it? Did you forget '+permissive-off' if running with +permissive?)");
   }
@@ -370,7 +412,7 @@ void htif_t::register_devices()
     device_list.register_device(d);
 }
 
-void htif_t::usage(const char * program_name)
+void htif_t::usage(const char *program_name)
 {
   printf("Usage: %s [EMULATOR OPTION]... [VERILOG PLUSARG]... [HOST OPTION]... BINARY [TARGET OPTION]...\n ",
          program_name);
@@ -384,6 +426,7 @@ EMULATOR OPTIONS\n\
     for available options.\n\
 EMUALTOR VERILOG PLUSARGS\n\
   Consult generated-src*/*.plusArgs for available options\n\
-", stdout);
+",
+        stdout);
   fputs("\n" HTIF_USAGE_OPTIONS, stdout);
 }

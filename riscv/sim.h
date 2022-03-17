@@ -37,7 +37,7 @@ public:
         reg_t start_pc, std::vector<std::pair<reg_t, mem_t*>> mems,
         std::vector<std::pair<reg_t, abstract_device_t*>> plugin_devices,
         const std::vector<std::string>& args, const std::vector<int> hartids,
-        const debug_module_config_t &dm_config, const char *log_path,
+        const debug_module_config_t &dm_config, const char *log_path, const char *memory_dump_path,
         bool dtb_enabled, const char *dtb_file,
 #ifdef HAVE_BOOST_ASIO
         boost::asio::io_service *io_service_ptr_ctor, boost::asio::ip::tcp::acceptor *acceptor_ptr_ctor,  // option -s
@@ -88,6 +88,8 @@ private:
   std::unique_ptr<print_device_t> print;
   bus_t bus;
   log_file_t log_file;
+  /*apy-sc*/
+  memory_dump_file_t memory_dump_file;
 
   FILE *cmd_file; // pointer to debug command input file
 

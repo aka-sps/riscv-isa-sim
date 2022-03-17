@@ -279,7 +279,7 @@ class processor_t : public abstract_device_t
 public:
   processor_t(const char* isa, const char* priv, const char* varch,
               simif_t* sim, uint32_t id, bool halt_on_reset,
-              FILE *log_file, std::ostream& sout_); // because of command line option --log and -s we need both
+              FILE *log_file, /*apy-sc*/FILE *memory_dump_file, std::ostream& sout_); // because of command line option --log and -s we need both
   ~processor_t();
 
   void set_debug(bool value);
@@ -349,6 +349,8 @@ public:
   const disassembler_t* get_disassembler() { return disassembler; }
 
   FILE *get_log_file() { return log_file; }
+  /*apy-sc*/
+  FILE *get_memory_dump_file() {return memory_dump_file;}
 
   void register_insn(insn_desc_t);
   void register_extension(extension_t*);
@@ -473,6 +475,8 @@ private:
   bool histogram_enabled;
   bool log_commits_enabled;
   FILE *log_file;
+  /*apy-sc*/
+  FILE *memory_dump_file;
   std::ostream sout_; // needed for socket command interface -s, also used for -d and -l, but not for --log
   bool halt_on_reset;
   std::vector<bool> extension_table;

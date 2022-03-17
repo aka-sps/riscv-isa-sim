@@ -242,6 +242,9 @@ int main(int argc, char** argv)
   bool log_cache = false;
   bool log_commits = false;
   const char *log_path = nullptr;
+/*20220317 memory dump feature start*/
+  const char *memory_dump_path = nullptr;
+/*20220317 memory dump feature end*/
   std::vector<std::function<extension_t*()>> extensions;
   const char* initrd = NULL;
   const char* isa = DEFAULT_ISA;
@@ -380,9 +383,16 @@ int main(int argc, char** argv)
   parser.option(0, "dm-no-halt-groups", 0,
       [&](const char* s){dm_config.support_haltgroups = false;});
   parser.option(0, "log-commits", 0,
-                [&](const char* s){log_commits = true;});
+                [&](const char *s)
+                { log_commits = true; });
   parser.option(0, "log", 1,
-                [&](const char* s){log_path = s;});
+                [&](const char *s)
+                { log_path = s; });
+/*20220317 memory dump feature start*/
+  parser.option(0, "memory-dump-path", 1,
+                [&](const char *s)
+                { memory_dump_path = s; });
+/*20220317 memory dump feature end*/
   FILE *cmd_file = NULL;
   parser.option(0, "debug-cmd", 1, [&](const char* s){
      if ((cmd_file = fopen(s, "r"))==NULL) {
@@ -450,7 +460,7 @@ int main(int argc, char** argv)
 
   sim_t s(isa, priv, varch, nprocs, halted, real_time_clint,
       initrd_start, initrd_end, bootargs, start_pc, mems, plugin_devices, htif_args,
-      std::move(hartids), dm_config, log_path, dtb_enabled, dtb_file,
+      std::move(hartids), dm_config, log_path, memory_dump_path, dtb_enabled, dtb_file,
 #ifdef HAVE_BOOST_ASIO
       io_service_ptr, acceptor_ptr,
 #endif

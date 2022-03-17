@@ -41,6 +41,8 @@ sim_t::sim_t(const char* isa, const char* priv, const char* varch,
              std::vector<int> const hartids,
              const debug_module_config_t &dm_config,
              const char *log_path,
+             /*apy-sc*/
+             const char *memory_dump_path,
              bool dtb_enabled, const char *dtb_file,
 #ifdef HAVE_BOOST_ASIO
              boost::asio::io_service *io_service_ptr, boost::asio::ip::tcp::acceptor *acceptor_ptr, // option -s
@@ -57,6 +59,7 @@ sim_t::sim_t(const char* isa, const char* priv, const char* varch,
     dtb_file(dtb_file ? dtb_file : ""),
     dtb_enabled(dtb_enabled),
     log_file(log_path),
+    memory_dump_file(memory_dump_path), //apy-sc
     cmd_file(cmd_file),
 #ifdef HAVE_BOOST_ASIO
     io_service_ptr(io_service_ptr), // socket interface
@@ -97,7 +100,7 @@ sim_t::sim_t(const char* isa, const char* priv, const char* varch,
   for (size_t i = 0; i < nprocs; i++) {
     int hart_id = hartids.empty() ? i : hartids[i];
     procs[i] = new processor_t(isa, priv, varch, this, hart_id, halted,
-                               log_file.get(), sout_);
+                               log_file.get(),memory_dump_file.get(), sout_);
   }
 
   make_dtb();
@@ -112,7 +115,7 @@ sim_t::sim_t(const char* isa, const char* priv, const char* varch,
   } else {
     bus.add_device(clint_base, clint.get());
   }
-  
+
   if (mtimer_base == 0) {
     clint.reset(new clint_t(procs, CPU_HZ / INSNS_PER_RTC_TICK, real_time_clint));
     reg_t clint_base;
