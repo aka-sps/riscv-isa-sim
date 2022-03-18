@@ -1,6 +1,7 @@
 // See LICENSE for license details.
 
 #include "processor.h"
+#include "htif.h"
 #include "mmu.h"
 #include "disasm.h"
 #include <cassert>
@@ -172,10 +173,29 @@ static void commit_log_stash_privilege(processor_t* p) {}
 static void commit_log_print_insn(processor_t* p, reg_t pc, insn_t insn) {}
 #endif
 
-static void commit_memory_dump_print_value(FILE *memory_dump_file)
+static void commit_memory_dump_print_value(FILE *memory_dump_file, processor_t * p)
 {
    assert(memory_dump_file);
-   fprintf(memory_dump_file, "Hello it is the end of the log file");
+    mmu_t* mmu =p->get_mmu();
+//    std::map<std::string, uint64_t> symbols = htif_t::load_payload(targs[0], &entry);
+    reg_t addr_start = 0x01008000;
+    reg_t addr_end = 0x01008080;
+//    fprintf(memory_dump_file, "memory_to_dump_start\n\r");
+    for (reg_t a=addr_start; a<addr_end; a=a+8)
+    {
+       reg_t val = mmu->load_uint64(a);
+//       fprintf(memory_dump_file, "adress = ");
+//       fprintf(memory_dump_file, "0x%016" PRIx64, a);
+//       fprintf(memory_dump_file, "\n\r");
+       for (sreg_t i=7; i>=0; i--)
+       {
+         fprintf(memory_dump_file, "%02" PRIx64, (0xFF&(val>>i*8)));
+         fprintf(memory_dump_file, "\n");
+       }
+    }
+//   fprintf(memory_dump_file, "memory_to_dump_end/n");
+//   fprintf(memory_dump_file, "0x%016" PRIx64, (const char *)&end);
+
 
 }
 
@@ -269,7 +289,7 @@ void processor_t::step(size_t n)
           for (i = 10; i < 15; i++) \
             printf("\t%lx", state.XPR[i]); \
           printf("\n"); \
-          commit_memory_dump_print_value(memory_dump_file); \
+          commit_memory_dump_print_value(memory_dump_file, this); \
         } \
       if (unlikely(invalid_pc(pc))) { \
         switch (pc) { \

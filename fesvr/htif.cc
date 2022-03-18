@@ -20,8 +20,10 @@
 /* XXX */
 reg_t exit_addr;
 /*20220317 memory dump feature */
+enum MEMORY_DUMP_ENUM {NO_START_AND_END, ONLY_START, HAVE_START_AND_END};
 reg_t memory_to_dump_start_addr;
 reg_t memory_to_dump_end_addr;
+MEMORY_DUMP_ENUM memory_dump_addresses_is_fine;
 /*20220317 memory dump feature end*/
 
 /* Attempt to determine the execution prefix automatically.  autoconf
@@ -139,10 +141,19 @@ void htif_t::load_program()
     exit_addr = symbols["sc_exit"];
 
   /*20220317 memory dump feature begin*/
+  memory_dump_addresses_is_fine=NO_START_AND_END;
+  memory_to_dump_start_addr=0xBAD;
+  memory_to_dump_end_addr=0xBAD;
   if (symbols.count("memory_to_dump_start_addr"))
-    memory_to_dump_start_addr = symbols["memory_to_dump_start_addr"];
-  if (symbols.count("memory_to_dump_end_addr"))
-    memory_to_dump_end_addr = symbols["memory_to_dump_end_addr"];
+  {
+      memory_to_dump_start_addr = symbols["memory_to_dump_start_addr"];
+      memory_dump_addresses_is_fine=ONLY_START;
+      if (symbols.count("memory_to_dump_end_addr"))
+      {
+      memory_to_dump_end_addr = symbols["memory_to_dump_end_addr"];
+      memory_dump_addresses_is_fine=HAVE_START_AND_END;
+      }
+  }
   /*20220317 memory dump feature end*/
 
   if (symbols.count("tohost") && symbols.count("fromhost"))
