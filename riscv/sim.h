@@ -14,6 +14,7 @@
 #include "debug_module.h"
 #include "devices.h"
 #include "log_file.h"
+#include "memory_dump_file.h"
 #include "processor.h"
 #include "simif.h"
 

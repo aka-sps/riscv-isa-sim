@@ -170,7 +170,7 @@ static std::vector<std::pair<reg_t, mem_t*>> make_mems(const char* arg)
       help();
     auto size = strtoull(p + 1, &p, 0);
 
-    printf("==> MEM: %p %p\n", base, size);
+    printf("==> MEM: %llu %llu\n", base, size);
 
     // page-align base and size
     auto base0 = base, size0 = size;

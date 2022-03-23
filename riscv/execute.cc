@@ -178,8 +178,8 @@ static void commit_memory_dump_print_value(FILE *memory_dump_file, processor_t *
    assert(memory_dump_file);
     mmu_t* mmu =p->get_mmu();
 //    std::map<std::string, uint64_t> symbols = htif_t::load_payload(targs[0], &entry);
-    reg_t addr_start = 0x01008000;
-    reg_t addr_end = 0x01008080;
+    reg_t addr_start = 0x1f80;
+    reg_t addr_end = addr_start + 0x400;
 //    fprintf(memory_dump_file, "memory_to_dump_start\n\r");
     for (reg_t a=addr_start; a<addr_end; a=a+8)
     {
