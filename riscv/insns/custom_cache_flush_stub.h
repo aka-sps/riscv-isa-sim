@@ -1,0 +1,1 @@
+//just stab to make possible for spike to recognize opcode 0x10950073 from cashe_flush()
