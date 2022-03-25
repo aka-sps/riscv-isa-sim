@@ -15,6 +15,7 @@
 #include "debug_rom_defines.h"
 #include "entropy_source.h"
 #include "csrs.h"
+#include "memory_dump.h"
 
 class processor_t;
 class mmu_t;
@@ -279,7 +280,7 @@ class processor_t : public abstract_device_t
 public:
   processor_t(const char* isa, const char* priv, const char* varch,
               simif_t* sim, uint32_t id, bool halt_on_reset,
-              FILE *log_file, /*apy-sc*/FILE *memory_dump_file, std::ostream& sout_); // because of command line option --log and -s we need both
+              FILE *log_file, std::ostream& sout_); // because of command line option --log and -s we need both
   ~processor_t();
 
   void set_debug(bool value);
@@ -349,8 +350,6 @@ public:
   const disassembler_t* get_disassembler() { return disassembler; }
 
   FILE *get_log_file() { return log_file; }
-  /*apy-sc*/
-  FILE *get_memory_dump_file() {return memory_dump_file;}
 
   void register_insn(insn_desc_t);
   void register_extension(extension_t*);
@@ -460,6 +459,9 @@ public:
 
   const char* get_symbol(uint64_t addr);
 
+  // memory dump routine
+  void memory_dump_add(memory_dump_t * some_memory_dump);
+
 private:
   simif_t* sim;
   mmu_t* mmu; // main memory is always accessed via the mmu
@@ -475,8 +477,6 @@ private:
   bool histogram_enabled;
   bool log_commits_enabled;
   FILE *log_file;
-  /*apy-sc*/
-  FILE *memory_dump_file;
   std::ostream sout_; // needed for socket command interface -s, also used for -d and -l, but not for --log
   bool halt_on_reset;
   std::vector<bool> extension_table;
@@ -518,6 +518,9 @@ public:
   reg_t n_pmp;
   reg_t lg_pmp_granularity;
   reg_t pmp_tor_mask() { return -(reg_t(1) << (lg_pmp_granularity - PMP_SHIFT)); }
+
+  // memory dump routine
+  memory_dump_t * memory_dump;
 
   class vectorUnit_t {
     public:

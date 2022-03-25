@@ -14,6 +14,7 @@
 #include <memory>
 #include <fstream>
 #include "../VERSION"
+#include "memory_dump.h"
 
 /* XXX */
 extern reg_t mtimer_base;
@@ -80,6 +81,12 @@ static void help(int exit_code = 1)
   fprintf(stderr, "  --syn_mtimer          SCR mtimer base address\n");
   fprintf(stderr, "  --syn_print           SCR print device base address\n");
   fprintf(stderr, "  --mpu_entries         Number of MPU entries, MPU disabled if 0 [default: 16]\n");
+  fprintf(stderr, "  --memory_dump-sections=<a:m,b:n,...> sections to dump\n");
+  fprintf(stderr, "                             a, b possible to be an adress with 0x beginning\n");
+  fprintf(stderr, "                             m, n possible to be an adress with 0x beginning, or lenght of the section with +0x beggining\n");
+  fprintf(stderr, "                             examples --memory-dump-regions=0x8000:+0x400\n");
+  fprintf(stderr, "                                      --memory-dump-regions=0x8000:0x8400\n");
+  fprintf(stderr, "  --memory_dump-path=<name>         file name for option --memory-dump-sections\n");
 
   exit(exit_code);
 }
@@ -170,7 +177,7 @@ static std::vector<std::pair<reg_t, mem_t*>> make_mems(const char* arg)
       help();
     auto size = strtoull(p + 1, &p, 0);
 
-    printf("==> MEM: %llu %llu\n", base, size);
+    printf("==> MEM: %llx %llx\n", base, size);
 
     // page-align base and size
     auto base0 = base, size0 = size;
@@ -244,6 +251,7 @@ int main(int argc, char** argv)
   const char *log_path = nullptr;
 /*20220317 memory dump feature start*/
   const char *memory_dump_path = nullptr;
+  const char *memory_dump_regions = nullptr;
 /*20220317 memory dump feature end*/
   std::vector<std::function<extension_t*()>> extensions;
   const char* initrd = NULL;
@@ -277,7 +285,6 @@ int main(int argc, char** argv)
       if (stream.peek() == ',') stream.ignore();
     }
   };
-
   auto const device_parser = [&plugin_devices](const char *s) {
     const std::string str(s);
     std::istringstream stream(str);
@@ -389,6 +396,10 @@ int main(int argc, char** argv)
                 [&](const char *s)
                 { log_path = s; });
 /*20220317 memory dump feature start*/
+  parser.option(0, "memory-dump-regions", 1,
+                [&](const char *s)
+                { memory_dump_regions = s;
+                });
   parser.option(0, "memory-dump-path", 1,
                 [&](const char *s)
                 { memory_dump_path = s; });
@@ -460,11 +471,12 @@ int main(int argc, char** argv)
 
   sim_t s(isa, priv, varch, nprocs, halted, real_time_clint,
       initrd_start, initrd_end, bootargs, start_pc, mems, plugin_devices, htif_args,
-      std::move(hartids), dm_config, log_path, memory_dump_path, dtb_enabled, dtb_file,
+      std::move(hartids), dm_config, log_path, dtb_enabled, dtb_file,
 #ifdef HAVE_BOOST_ASIO
       io_service_ptr, acceptor_ptr,
 #endif
       cmd_file);
+
   std::unique_ptr<remote_bitbang_t> remote_bitbang((remote_bitbang_t *) NULL);
   std::unique_ptr<jtag_dtm_t> jtag_dtm(
       new jtag_dtm_t(&s.debug_module, dmi_rti));
@@ -493,6 +505,14 @@ int main(int argc, char** argv)
   s.set_debug(debug);
   s.configure_log(log, log_commits);
   s.set_histogram(histogram);
+
+  //memory_dump_configuration
+  memory_dump_t memory_dump(memory_dump_path);
+  memory_dump.parse_memory_dump_string(memory_dump_regions);
+#if MEMORYDUMP_DEBUG
+  memory_dump.print_memory_dump_vector();
+#endif
+  s.memory_dump_add(&memory_dump);
 
   auto return_code = s.run();
 

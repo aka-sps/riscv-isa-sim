@@ -173,30 +173,33 @@ static void commit_log_stash_privilege(processor_t* p) {}
 static void commit_log_print_insn(processor_t* p, reg_t pc, insn_t insn) {}
 #endif
 
-static void commit_memory_dump_print_value(FILE *memory_dump_file, processor_t * p)
+static void commit_memory_dump(processor_t * p)
 {
-   assert(memory_dump_file);
-    mmu_t* mmu =p->get_mmu();
-//    std::map<std::string, uint64_t> symbols = htif_t::load_payload(targs[0], &entry);
-    reg_t addr_start = 0x1f80;
-    reg_t addr_end = addr_start + 0x400;
-//    fprintf(memory_dump_file, "memory_to_dump_start\n\r");
-    for (reg_t a=addr_start; a<addr_end; a=a+8)
-    {
-       reg_t val = mmu->load_uint64(a);
-//       fprintf(memory_dump_file, "adress = ");
-//       fprintf(memory_dump_file, "0x%016" PRIx64, a);
-//       fprintf(memory_dump_file, "\n\r");
-       for (sreg_t i=7; i>=0; i--)
-       {
-         fprintf(memory_dump_file, "%02" PRIx64, (0xFF&(val>>i*8)));
-         fprintf(memory_dump_file, "\n");
-       }
-    }
-//   fprintf(memory_dump_file, "memory_to_dump_end/n");
-//   fprintf(memory_dump_file, "0x%016" PRIx64, (const char *)&end);
+ std::vector<std::tuple<reg_t,reg_t >> address = p->memory_dump->provide_memory_adresses_to_dump();
+      #if MEMORYDUMP_DEBUG
+      fprintf(p->memory_dump->get(),"number of memory regions to dump is %lu\n", address.size());
+      #endif
 
+      for (reg_t i=0; i<address.size(); i++)
+      {
+            reg_t addr_start = std::get<0>(address[i]);
+            reg_t addr_end = std::get<1>(address[i]);
 
+            #if MEMORYDUMP_DEBUG
+            fprintf(p->memory_dump->get(),"start 0x%lx, end 0x%lx\n", addr_start, addr_end);
+            #endif
+
+            mmu_t* mmu =p->get_mmu();
+            for (reg_t a=addr_start; a<addr_end; a++)
+            {
+                #if MEMORYDUMP_DEBUG
+                fprintf(p->memory_dump->get(),"addr =0x%lx\n",a);
+                #endif
+                reg_t val = mmu->load_uint8(a);
+                fprintf(p->memory_dump->get(), "%02" PRIx64, val);
+                fprintf(p->memory_dump->get(), "\n");
+            }
+      }
 }
 
 inline void processor_t::update_histogram(reg_t pc)
@@ -277,35 +280,34 @@ void processor_t::step(size_t n)
     size_t instret = 0;
     reg_t pc = state.pc;
     mmu_t* _mmu = mmu;
-
 /* not really a place for this? */
-    #define advance_pc() \
-      if (unlikely(pc == exit_addr)) \
-        if (exit_addr != 0) {  \
-          if (!dbg_rbb) { \
-            ctrlc_pressed = true; \
-          } \
-          printf("exit status:"); \
-          for (i = 10; i < 15; i++) \
-            printf("\t%lx", state.XPR[i]); \
-          printf("\n"); \
-          commit_memory_dump_print_value(memory_dump_file, this); \
-        } \
-      if (unlikely(invalid_pc(pc))) { \
-        switch (pc) { \
+    #define advance_pc()                                            \
+      if (unlikely(pc == exit_addr))                                \
+        if (exit_addr != 0) {                                       \
+          if (!dbg_rbb) {                                           \
+            ctrlc_pressed = true;                                   \
+          }                                                         \
+          commit_memory_dump(this);                                 \
+          printf("exit status:");                                   \
+          for (i = 10; i < 15; i++)                                 \
+            printf("\t%lx", state.XPR[i]);                          \
+          printf("\n");                                             \
+        }                                                           \
+      if (unlikely(invalid_pc(pc))) {                               \
+        switch (pc) {                                               \
           case PC_SERIALIZE_BEFORE: state.serialized = true; break; \
-          case PC_SERIALIZE_AFTER: ++instret; break; \
-          case PC_SERIALIZE_WFI: n = ++instret; break; \
-          default: abort(); \
-        } \
-        pc = state.pc; \
-        break; \
-      } else { \
-        state.pc = pc; \
-        instret++; \
-      } \
-      if (ctrlc_pressed) { \
-        return; \
+          case PC_SERIALIZE_AFTER: ++instret; break;                \
+          case PC_SERIALIZE_WFI: n = ++instret; break;              \
+          default: abort();                                         \
+        }                                                           \
+        pc = state.pc;                                              \
+        break;                                                      \
+      } else {                                                      \
+        state.pc = pc;                                              \
+        instret++;                                                  \
+      }                                                             \
+      if (ctrlc_pressed) {                                          \
+        return;                                                     \
       }
 
     try

@@ -29,10 +29,10 @@ reg_t mpu_entries = 16;
 
 processor_t::processor_t(const char* isa, const char* priv, const char* varch,
                          simif_t* sim, uint32_t id, bool halt_on_reset,
-                         FILE* log_file, FILE* memory_dump_file, std::ostream& sout_)
+                         FILE* log_file, std::ostream& sout_)
   : debug(false), halt_request(HR_NONE), sim(sim), id(id), xlen(0),
   histogram_enabled(false), log_commits_enabled(false),
-  log_file(log_file), memory_dump_file(memory_dump_file), sout_(sout_.rdbuf()), halt_on_reset(halt_on_reset),
+  log_file(log_file), sout_(sout_.rdbuf()), halt_on_reset(halt_on_reset),
   extension_table(256, false), impl_table(256, false), last_pc(1), executions(1)
 {
   VU.p = this;
@@ -1203,4 +1203,9 @@ void processor_t::trigger_updated()
       mmu->check_triggers_store = true;
     }
   }
+}
+
+void processor_t::memory_dump_add(memory_dump_t * some_memory_dump)
+{
+   this->memory_dump=some_memory_dump;
 }

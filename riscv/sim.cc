@@ -41,8 +41,6 @@ sim_t::sim_t(const char* isa, const char* priv, const char* varch,
              std::vector<int> const hartids,
              const debug_module_config_t &dm_config,
              const char *log_path,
-             /*apy-sc*/
-             const char *memory_dump_path,
              bool dtb_enabled, const char *dtb_file,
 #ifdef HAVE_BOOST_ASIO
              boost::asio::io_service *io_service_ptr, boost::asio::ip::tcp::acceptor *acceptor_ptr, // option -s
@@ -59,7 +57,6 @@ sim_t::sim_t(const char* isa, const char* priv, const char* varch,
     dtb_file(dtb_file ? dtb_file : ""),
     dtb_enabled(dtb_enabled),
     log_file(log_path),
-    memory_dump_file(memory_dump_path), //apy-sc
     cmd_file(cmd_file),
 #ifdef HAVE_BOOST_ASIO
     io_service_ptr(io_service_ptr), // socket interface
@@ -100,7 +97,7 @@ sim_t::sim_t(const char* isa, const char* priv, const char* varch,
   for (size_t i = 0; i < nprocs; i++) {
     int hart_id = hartids.empty() ? i : hartids[i];
     procs[i] = new processor_t(isa, priv, varch, this, hart_id, halted,
-                               log_file.get(),memory_dump_file.get(), sout_);
+                               log_file.get(), sout_);
   }
 
   make_dtb();
@@ -238,6 +235,7 @@ int sim_t::run()
   host = context_t::current();
   target.init(sim_thread_main, this);
   return htif_t::run();
+  printf("hello");
 }
 
 void sim_t::step(size_t n)
@@ -497,4 +495,14 @@ memif_endianness_t sim_t::get_target_endianness() const
 void sim_t::proc_reset(unsigned id)
 {
   debug_module.proc_reset(id);
+}
+
+void sim_t::memory_dump_add(memory_dump_t * some_memory_dump)
+{
+   this->memory_dump=some_memory_dump;
+     for (size_t i = 0; i < this->nprocs(); i++)
+     {
+      procs[i]->memory_dump_add(some_memory_dump);
+     }
+
 }
