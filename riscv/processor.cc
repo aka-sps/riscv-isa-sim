@@ -1205,7 +1205,13 @@ void processor_t::trigger_updated()
   }
 }
 
+/*20220317 memory dump feature start*/
 void processor_t::memory_dump_add(memory_dump_t * some_memory_dump)
 {
    this->memory_dump=some_memory_dump;
 }
+void processor_t::reg_dump_add(reg_dump_t * some_reg_dump)
+{
+   this->reg_dump=some_reg_dump;
+}
+/*20220317 memory dump feature end*/

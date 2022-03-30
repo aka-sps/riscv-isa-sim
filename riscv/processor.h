@@ -16,6 +16,7 @@
 #include "entropy_source.h"
 #include "csrs.h"
 #include "memory_dump.h"
+#include "reg_dump.h"
 
 class processor_t;
 class mmu_t;
@@ -461,6 +462,7 @@ public:
 
   // memory dump routine
   void memory_dump_add(memory_dump_t * some_memory_dump);
+  void reg_dump_add(reg_dump_t * some_reg_dump);
 
 private:
   simif_t* sim;
@@ -519,8 +521,10 @@ public:
   reg_t lg_pmp_granularity;
   reg_t pmp_tor_mask() { return -(reg_t(1) << (lg_pmp_granularity - PMP_SHIFT)); }
 
-  // memory dump routine
+/*20220317 memory dump feature start*/
   memory_dump_t * memory_dump;
+  reg_dump_t * reg_dump;
+/*20220317 memory dump feature end*/
 
   class vectorUnit_t {
     public:

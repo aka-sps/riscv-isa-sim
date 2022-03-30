@@ -223,6 +223,8 @@ void sim_t::main()
       remote_bitbang->tick();
     } else {
       if (!debug && ctrlc_pressed) {
+        print_memory_dump();
+        print_reg_dump();
         exit(0);
       }
     }
@@ -245,6 +247,7 @@ void sim_t::step(size_t n)
     steps = std::min(n - i, INTERLEAVE - current_step);
     procs[current_proc]->step(steps);
     if (ctrlc_pressed && !dbg_rbb) {
+
       return;
     }
 
@@ -496,12 +499,126 @@ void sim_t::proc_reset(unsigned id)
   debug_module.proc_reset(id);
 }
 
+/*20220317 memory dump feature start*/
 void sim_t::memory_dump_add(memory_dump_t * some_memory_dump)
 {
    this->memory_dump=some_memory_dump;
      for (size_t i = 0; i < this->nprocs(); i++)
      {
-      procs[i]->memory_dump_add(some_memory_dump);
+      procs[i]->memory_dump_add(this->memory_dump);
      }
-
 }
+void sim_t::reg_dump_add(reg_dump_t * some_reg_dump)
+{
+   this->reg_dump=some_reg_dump;
+     for (size_t i = 0; i < this->nprocs(); i++)
+     {
+      procs[i]->reg_dump_add(this->reg_dump);
+      this->reg_dump->add_core();
+     }
+}
+
+void sim_t::print_memory_dump()
+{
+  processor_t * p = procs[0];
+  std::vector<std::tuple<reg_t,reg_t >> address = p->memory_dump->provide_memory_adresses_to_dump();
+  #if MEMORYDUMP_DEBUG
+  fprintf(p->memory_dump->get(),"number of memory regions to dump is %lu\n", address.size());
+  #endif
+  for (reg_t i=0; i<address.size(); i++)
+  {
+    reg_t addr_start = std::get<0>(address[i]);
+    reg_t addr_end = std::get<1>(address[i]);
+    #if MEMORYDUMP_DEBUG
+    fprintf(p->memory_dump->get(),"start 0x%lx, end 0x%lx\n", addr_start, addr_end);
+    #endif
+    mmu_t* mmu =p->get_mmu();
+    for (reg_t a=addr_start; a<addr_end; a++)
+    {
+      #if MEMORYDUMP_DEBUG
+      fprintf(p->memory_dump->get(),"addr =0x%lx\n",a);
+      #endif
+      reg_t val = mmu->load_uint8(a);
+      fprintf(p->memory_dump->get(), "%02" PRIx64, val);
+      fprintf(p->memory_dump->get(), "\n");
+    }
+  }
+}
+
+void sim_t::print_reg_dump()
+{
+  for (size_t i = 0; i < this->nprocs(); i++)
+  {
+    processor_t * p = procs[i];
+    int max_xlen = p->get_max_xlen();
+    if(p->reg_dump->is_need_to_print_scalar())
+    {
+      if (p->reg_dump->get(p->get_id())==stdout)
+      {
+        fprintf(p->reg_dump->get(p->get_id()), "core %u, scalar registers\n",p->get_id());
+      }
+      std::string string_to_print="x%u=%0"+std::to_string(max_xlen/4)+"llx\n";
+      for (int r = 0; r < NXPR; ++r)
+      {
+        fprintf(p->reg_dump->get(p->get_id()), string_to_print.c_str(),r, zext(p->get_state()->XPR[r], max_xlen));
+      }
+    }
+
+    if(p->reg_dump->is_need_to_print_float())
+    {
+      if (p->reg_dump->get(p->get_id())==stdout)
+      {
+        fprintf(p->reg_dump->get(p->get_id()), "core %u, float registers\n",p->get_id());
+      }
+      std::string string_to_print="f%lu=%0"+std::to_string(max_xlen/4)+"llx\n";
+      for (int r = 0; r < NFPR; ++r)
+      {
+        fprintf(p->reg_dump->get(p->get_id()), string_to_print.c_str(),r, p->get_state()->FPR[r]);
+      }
+    }
+
+    if(p->reg_dump->is_need_to_print_vector())
+    {
+      if (p->reg_dump->get(p->get_id())==stdout)
+      {
+        fprintf(p->reg_dump->get(p->get_id()), "core %u, vector registers\n",p->get_id());
+      }
+
+      int rstart = 0;
+      int rend = NVPR;
+      const int vlen_in_bytes = (int)(p->VU.get_vlen()) / 8;
+      const int elen_in_bytes = (int)(p->VU.get_elen()) / 8;
+      const int num_elem = vlen_in_bytes/elen_in_bytes;
+      for (int r = rstart; r < rend; ++r)
+      {
+        std::stringstream stream;
+        stream<<"v"+std::to_string(r)+"=";
+        for (int e = num_elem-1; e >= 0; --e)
+        {
+          uint64_t val;
+          switch(elen_in_bytes)
+          {
+            case 8:
+              val = P.VU.elt<uint64_t>(r, e);
+              stream << std::dec << "[" << e << "]:" << std::hex << std::setfill ('0') << std::setw(16) << val;
+              break;
+            case 4:
+              val = P.VU.elt<uint32_t>(r, e);
+              stream << std::dec << "[" << e << "]:" << std::hex << std::setfill ('0') << std::setw(8) << (uint32_t)val;
+              break;
+            case 2:
+              val = P.VU.elt<uint16_t>(r, e);
+              stream << std::dec << "[" << e << "]:" << std::hex << std::setfill ('0') << std::setw(8) << (uint16_t)val;
+              break;
+            case 1:
+              val = P.VU.elt<uint8_t>(r, e);
+              stream << std::dec << "[" << e << "]:" << std::hex << std::setfill ('0') << std::setw(8) << (int)(uint8_t)val;
+              break;
+          }
+        }
+        fprintf(p->reg_dump->get(p->get_id()), "%s\n", stream.str().c_str());
+      }
+    }
+  }
+}
+/*20220317 memory dump feature end*/

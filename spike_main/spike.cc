@@ -15,6 +15,8 @@
 #include <fstream>
 #include "../VERSION"
 #include "memory_dump.h"
+#include "reg_dump.h"
+
 
 /* XXX */
 extern reg_t mtimer_base;
@@ -81,12 +83,14 @@ static void help(int exit_code = 1)
   fprintf(stderr, "  --syn_mtimer          SCR mtimer base address\n");
   fprintf(stderr, "  --syn_print           SCR print device base address\n");
   fprintf(stderr, "  --mpu_entries         Number of MPU entries, MPU disabled if 0 [default: 16]\n");
-  fprintf(stderr, "  --memory_dump-sections=<a:m,b:n,...> sections to dump\n");
+  fprintf(stderr, "  --memory-dump-sections=<a:m,b:n,...> sections to dump\n");
   fprintf(stderr, "                             a, b possible to be an adress with 0x beginning\n");
   fprintf(stderr, "                             m, n possible to be an adress with 0x beginning, or lenght of the section with +0x beggining\n");
   fprintf(stderr, "                             examples --memory-dump-regions=0x8000:+0x400\n");
   fprintf(stderr, "                                      --memory-dump-regions=0x8000:0x8400\n");
-  fprintf(stderr, "  --memory_dump-path=<name>         file name for option --memory-dump-sections\n");
+  fprintf(stderr, "  --memory-dump-path=<name>         file name for option --memory-dump-sections\n");
+  fprintf(stderr, "  --reg-dump-path=<name>         file name for option --reg-dump, will add core number (0...n) at the end of the file\n");
+  fprintf(stderr, "  --reg-dump=xfv         dump to file for each core scalar (x),float(double) (f), vector (v) reg files\n");
 
   exit(exit_code);
 }
@@ -252,6 +256,8 @@ int main(int argc, char** argv)
 /*20220317 memory dump feature start*/
   const char *memory_dump_path = nullptr;
   const char *memory_dump_regions = nullptr;
+  const char *reg_dump_path = nullptr;
+  const char *reg_dump_prints = nullptr;
 /*20220317 memory dump feature end*/
   std::vector<std::function<extension_t*()>> extensions;
   const char* initrd = NULL;
@@ -403,6 +409,13 @@ int main(int argc, char** argv)
   parser.option(0, "memory-dump-path", 1,
                 [&](const char *s)
                 { memory_dump_path = s; });
+  parser.option(0, "reg-dump", 1,
+                [&](const char *s)
+                { reg_dump_prints = s;
+                });
+  parser.option(0, "reg-dump-path", 1,
+                [&](const char *s)
+                { reg_dump_path = s; });
 /*20220317 memory dump feature end*/
   FILE *cmd_file = NULL;
   parser.option(0, "debug-cmd", 1, [&](const char* s){
@@ -506,13 +519,18 @@ int main(int argc, char** argv)
   s.configure_log(log, log_commits);
   s.set_histogram(histogram);
 
-  //memory_dump_configuration
+/*20220317 memory dump feature start*/
   memory_dump_t memory_dump(memory_dump_path);
   memory_dump.parse_memory_dump_string(memory_dump_regions);
 #if MEMORYDUMP_DEBUG
   memory_dump.print_memory_dump_vector();
 #endif
   s.memory_dump_add(&memory_dump);
+
+  reg_dump_t reg_dump(reg_dump_path);
+  reg_dump.parse_reg_dump_string(reg_dump_prints);
+  s.reg_dump_add(&reg_dump);
+/*20220317 memory dump feature end*/
 
   auto return_code = s.run();
 

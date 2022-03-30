@@ -5,6 +5,7 @@
 #include "mmu.h"
 #include "disasm.h"
 #include <cassert>
+#include <iomanip>
 
 /* XXX */
 extern volatile bool ctrlc_pressed;
@@ -12,10 +13,6 @@ extern volatile bool ctrlc_pressed;
 /* XXX */
 extern reg_t exit_addr;
 extern bool dbg_rbb;
-/*20220317 memory dump feature */
-extern reg_t memory_to_dump_start;
-extern reg_t memory_to_dump_end;
-/*20220317 memory dump feature end*/
 
 #ifdef RISCV_ENABLE_COMMITLOG
 static void commit_log_reset(processor_t* p)
@@ -173,34 +170,6 @@ static void commit_log_stash_privilege(processor_t* p) {}
 static void commit_log_print_insn(processor_t* p, reg_t pc, insn_t insn) {}
 #endif
 
-static void commit_memory_dump(processor_t * p)
-{
- std::vector<std::tuple<reg_t,reg_t >> address = p->memory_dump->provide_memory_adresses_to_dump();
-      #if MEMORYDUMP_DEBUG
-      fprintf(p->memory_dump->get(),"number of memory regions to dump is %lu\n", address.size());
-      #endif
-
-      for (reg_t i=0; i<address.size(); i++)
-      {
-            reg_t addr_start = std::get<0>(address[i]);
-            reg_t addr_end = std::get<1>(address[i]);
-
-            #if MEMORYDUMP_DEBUG
-            fprintf(p->memory_dump->get(),"start 0x%lx, end 0x%lx\n", addr_start, addr_end);
-            #endif
-
-            mmu_t* mmu =p->get_mmu();
-            for (reg_t a=addr_start; a<addr_end; a++)
-            {
-                #if MEMORYDUMP_DEBUG
-                fprintf(p->memory_dump->get(),"addr =0x%lx\n",a);
-                #endif
-                reg_t val = mmu->load_uint8(a);
-                fprintf(p->memory_dump->get(), "%02" PRIx64, val);
-                fprintf(p->memory_dump->get(), "\n");
-            }
-      }
-}
 
 inline void processor_t::update_histogram(reg_t pc)
 {
@@ -287,7 +256,6 @@ void processor_t::step(size_t n)
           if (!dbg_rbb) {                                           \
             ctrlc_pressed = true;                                   \
           }                                                         \
-          commit_memory_dump(this);                                 \
           printf("exit status:");                                   \
           for (i = 10; i < 15; i++)                                 \
             printf("\t%lx", state.XPR[i]);                          \

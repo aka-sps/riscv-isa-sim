@@ -252,7 +252,6 @@ int htif_t::run()
   }
 
   stop();
-
   return exit_code();
 }
 

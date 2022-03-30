@@ -28,7 +28,7 @@
 
   Notes:
   1) There is no memory check for dump for existence, so if you will dump a memory which does not exist will be load/store exception
-  2) If there is no file to dump, but have sections parametrs - data will be dumped to stderr
+  2) If there is no file to dump, but have sections parametrs - data will be dumped to stdout
   3) Function provide_memory_adresses_to_dump() provide a dump only once due flag dump_once, because of there is more than 1 core, every core will try dump memory.
   3) Function provide_memory_adresses_to_dump() provide a dump only once due flag dump_once, because of there is more than 1 core, every core will try dump memory.
   4) define MEMORYDUMP_DEBUG to 1 to print what actual adresses were dumped
@@ -41,7 +41,12 @@ public:
   memory_dump_t(const char *path) : wrapped_file (nullptr, &fclose)
   {
     if (!path)
+    {
+      wrapped_file.reset(nullptr);
       return;
+    }
+
+    this->main_path=path;
 
     wrapped_file.reset(fopen(path, "w"));
     if (! wrapped_file) {
@@ -61,6 +66,7 @@ public:
     {
       return;
     }
+
     const std::string str(s);
     std::istringstream stream(str);
     reg_t cnt=0;
@@ -158,16 +164,22 @@ public:
         }
       }
     }
+    if (this->adresses_to_dump.size()==0)
+    {
+      wrapped_file.reset(nullptr);
+      std::remove(this->main_path.c_str());
+    }
     return this->adresses_to_dump;
   }
 
-  FILE *get() { return wrapped_file ? wrapped_file.get() : stderr; }
+  FILE *get() { return wrapped_file ? wrapped_file.get() : stdout; }
 
 private:
   std::vector<std::tuple<std::string, std::string,std::string >> memory_dump_vector;
   std::vector<std::tuple<reg_t,reg_t >> adresses_to_dump;
   std::unique_ptr<FILE, decltype(&fclose)> wrapped_file;
-  reg_t dump_once;
+  std::string main_path;
+  reg_t dump_once=0;
 };
 
 #endif

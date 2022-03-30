@@ -15,6 +15,7 @@
 #include "devices.h"
 #include "log_file.h"
 #include "memory_dump.h"
+#include "reg_dump.h"
 #include "processor.h"
 #include "simif.h"
 
@@ -24,6 +25,7 @@
 #include <string>
 #include <memory>
 #include <sys/types.h>
+#include <iomanip>
 
 class mmu_t;
 class remote_bitbang_t;
@@ -70,8 +72,12 @@ public:
   // Callback for processors to let the simulation know they were reset.
   void proc_reset(unsigned id);
 
-  //memory_dump routine
+  /*20220317 memory dump feature start*/
   void memory_dump_add(memory_dump_t * some_memory_dump);
+  void reg_dump_add(reg_dump_t * some_reg_dump);
+  void print_reg_dump();
+  void print_memory_dump();
+/*20220317 memory dump feature end*/
 
 private:
   std::vector<std::pair<reg_t, mem_t*>> mems;
@@ -92,8 +98,10 @@ private:
   std::unique_ptr<print_device_t> print;
   bus_t bus;
   log_file_t log_file;
-  /*apy-sc*/
+/*20220317 memory dump feature start*/
   memory_dump_t *memory_dump;
+  reg_dump_t *reg_dump;
+/*20220317 memory dump feature end*/
 
   FILE *cmd_file; // pointer to debug command input file
 
