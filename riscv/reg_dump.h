@@ -53,7 +53,7 @@ public:
         std::remove(path);
     }
   }
-  void add_core()
+  void add_core_reg_dump()
   {
    if ( (this->main_path.size()==0) ||
 
@@ -70,7 +70,7 @@ public:
     if (!wrapped_file)
     {
       std::ostringstream oss;
-      oss << "Failed to open reg dump file at `" << main_path.c_str() << "': "
+      oss << "Failed to open reg dump file at `" << core_path.c_str() << "': "
           << strerror (errno);
       throw std::runtime_error(oss.str());
     }
@@ -79,6 +79,30 @@ public:
     files.emplace_back(std::move(wrapped_file));
     }
   }
+
+  void add_core_rtl_log()
+  {
+   if (this->main_path.size()==0)
+      {
+       return;
+      }
+    std::string a=std::to_string(files.size());
+    std::string core_path=main_path+"_rtl_"+a;
+    wrapped_file.reset(fopen(core_path.c_str(), "w"));
+    if (!wrapped_file)
+    {
+      std::ostringstream oss;
+      oss << "Failed to open reg dump file at `" << core_path.c_str() << "': "
+          << strerror (errno);
+      throw std::runtime_error(oss.str());
+    }
+    else
+    {
+     log_syntacore.emplace_back(std::move(wrapped_file));
+    }
+  }
+
+
 
   void parse_reg_dump_string (const char *s)
   {
@@ -111,7 +135,15 @@ public:
       return files[core_number].get();
    }
    return stdout;
+  }
+  FILE *get_rtl_log(long unsigned int core_number)
+  {
+   if ((log_syntacore.size()!=0)&&(log_syntacore.size()>=core_number))
+   {
+      return log_syntacore[core_number].get();
    }
+   return stdout;
+  }
    bool is_need_to_print_scalar()
    {
        return need_to_print_scalar;
@@ -132,6 +164,7 @@ private:
   bool need_to_print_vector =false;
   std::string main_path;
   std::vector<std::unique_ptr<FILE, decltype(&fclose)>> files;
+  std::vector<std::unique_ptr<FILE, decltype(&fclose)>> log_syntacore;
 };
 
 #endif

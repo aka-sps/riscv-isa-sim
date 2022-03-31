@@ -514,7 +514,8 @@ void sim_t::reg_dump_add(reg_dump_t * some_reg_dump)
      for (size_t i = 0; i < this->nprocs(); i++)
      {
       procs[i]->reg_dump_add(this->reg_dump);
-      this->reg_dump->add_core();
+      this->reg_dump->add_core_reg_dump();
+      this->reg_dump->add_core_rtl_log();
      }
 }
 
