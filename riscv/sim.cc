@@ -516,6 +516,7 @@ void sim_t::reg_dump_add(reg_dump_t * some_reg_dump)
       procs[i]->reg_dump_add(this->reg_dump);
       this->reg_dump->add_core_reg_dump();
       this->reg_dump->add_core_rtl_log();
+      this->reg_dump->add_core_csr_log();
      }
 }
 

@@ -64,7 +64,7 @@ public:
       {
        return;
       }
-    std::string a=std::to_string(files.size());
+    std::string a=std::to_string(reg_dump.size());
     std::string core_path=main_path+a;
     wrapped_file.reset(fopen(core_path.c_str(), "w"));
     if (!wrapped_file)
@@ -76,7 +76,7 @@ public:
     }
     else
     {
-    files.emplace_back(std::move(wrapped_file));
+    reg_dump.emplace_back(std::move(wrapped_file));
     }
   }
 
@@ -86,19 +86,41 @@ public:
       {
        return;
       }
-    std::string a=std::to_string(files.size());
+    std::string a=std::to_string(log_syntacore_reg_trace.size());
     std::string core_path=main_path+"_rtl_"+a;
     wrapped_file.reset(fopen(core_path.c_str(), "w"));
     if (!wrapped_file)
     {
       std::ostringstream oss;
-      oss << "Failed to open reg dump file at `" << core_path.c_str() << "': "
+      oss << "Failed to open reg trace file at `" << core_path.c_str() << "': "
           << strerror (errno);
       throw std::runtime_error(oss.str());
     }
     else
     {
-     log_syntacore.emplace_back(std::move(wrapped_file));
+     log_syntacore_reg_trace.emplace_back(std::move(wrapped_file));
+    }
+  }
+
+  void add_core_csr_log()
+  {
+   if (this->main_path.size()==0)
+      {
+       return;
+      }
+    std::string a=std::to_string(log_syntacore_csr_trace.size());
+    std::string core_path=main_path+"_csr_"+a;
+    wrapped_file.reset(fopen(core_path.c_str(), "w"));
+    if (!wrapped_file)
+    {
+      std::ostringstream oss;
+      oss << "Failed to open csr trace file at `" << core_path.c_str() << "': "
+          << strerror (errno);
+      throw std::runtime_error(oss.str());
+    }
+    else
+    {
+     log_syntacore_csr_trace.emplace_back(std::move(wrapped_file));
     }
   }
 
@@ -130,20 +152,30 @@ public:
   FILE *get() { return wrapped_file ? wrapped_file.get() : stdout; }
   FILE *get(long unsigned int core_number)
   {
-   if ((files.size()!=0)&&(files.size()>=core_number))
+   if ((reg_dump.size()!=0)&&(reg_dump.size()>=core_number))
    {
-      return files[core_number].get();
+      return reg_dump[core_number].get();
    }
    return stdout;
   }
   FILE *get_rtl_log(long unsigned int core_number)
   {
-   if ((log_syntacore.size()!=0)&&(log_syntacore.size()>=core_number))
+   if ((log_syntacore_reg_trace.size()!=0)&&(log_syntacore_reg_trace.size()>=core_number))
    {
-      return log_syntacore[core_number].get();
+      return log_syntacore_reg_trace[core_number].get();
    }
    return stdout;
   }
+  FILE *get_csr_log(long unsigned int core_number)
+  {
+   if ((log_syntacore_csr_trace.size()!=0)&&(log_syntacore_csr_trace.size()>=core_number))
+   {
+      return log_syntacore_csr_trace[core_number].get();
+   }
+   return stdout;
+  }
+
+
    bool is_need_to_print_scalar()
    {
        return need_to_print_scalar;
@@ -163,8 +195,9 @@ private:
   bool need_to_print_float  =false;
   bool need_to_print_vector =false;
   std::string main_path;
-  std::vector<std::unique_ptr<FILE, decltype(&fclose)>> files;
-  std::vector<std::unique_ptr<FILE, decltype(&fclose)>> log_syntacore;
+  std::vector<std::unique_ptr<FILE, decltype(&fclose)>> reg_dump;
+  std::vector<std::unique_ptr<FILE, decltype(&fclose)>> log_syntacore_reg_trace;
+  std::vector<std::unique_ptr<FILE, decltype(&fclose)>> log_syntacore_csr_trace;
 };
 
 #endif

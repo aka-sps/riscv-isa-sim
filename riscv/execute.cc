@@ -50,14 +50,15 @@ static void commit_log_print_value(FILE *log_file, int width, const void *data)
       break;
     default:
       // max lengh of vector
-      if (((width - 1) & width) == 0) {
+      if (((width - 1) & width) == 0)
+      {
         const uint64_t *arr = (const uint64_t *)data;
-
-//        fprintf(log_file, "0x");
         for (int idx = width / 64 - 1; idx >= 0; --idx) {
           fprintf(log_file, "[%d]:%016" PRIx64, idx,  arr[idx]);
         }
-      } else {
+      }
+      else
+      {
         abort();
       }
       break;
@@ -165,9 +166,12 @@ static void commit_log_print_insn(processor_t *p, reg_t pc, insn_t insn)
 
   fprintf(log_file, "\n");
 }
-static void commit_log_syntacore_print_insn(processor_t *p, reg_t pc, insn_t insn)
+static void commit_log_syntacore_print_insn(processor_t *p, reg_t pc, reg_t npc, insn_t insn)
 {
-  FILE *log_file = p->reg_dump->get_rtl_log(p->get_id());
+  FILE *log_file_reg = p->reg_dump->get_rtl_log(p->get_id());
+  FILE *log_file_csr = p->reg_dump->get_csr_log(p->get_id());
+//  std::string rtl_log="";
+//  std::string csr_log="";
 
   auto& reg = p->get_state()->log_reg_write;
   auto& load = p->get_state()->log_mem_read;
@@ -176,19 +180,55 @@ static void commit_log_syntacore_print_insn(processor_t *p, reg_t pc, insn_t ins
   int xlen = p->get_state()->last_inst_xlen;
   int flen = p->get_state()->last_inst_flen;
 
-  // print core id on all lines so it is easy to grep
-///////////////////////  fprintf(log_file, "core%4" PRId32 ": ", p->get_id());
-
 //  fprintf(log_file, "%1d ", priv);
-  fprintf(log_file,"CLK R E ");
-  commit_log_print_value(log_file, xlen, pc);
-  fprintf(log_file, " ");
-//  fprintf(log_file, " (");
-  commit_log_print_value(log_file, insn.length() * 8, insn.bits());
-//  fprintf(log_file, ")");
+
+  fprintf(log_file_reg,"N ");
+  commit_log_print_value(log_file_reg, xlen, pc);
+  fprintf(log_file_reg, " ");
+  commit_log_print_value(log_file_reg, insn.length() * 8, insn.bits());
+  fprintf(log_file_reg, " ");
+  commit_log_print_value(log_file_reg, xlen, npc);
+  fprintf(log_file_reg, " ");
   bool show_vec = false;
 
-  for (auto item : reg) {
+  //inspect do we have csrs or vector csrs?
+  bool have_csr = false;
+  bool have_csr_vector_csr = false;
+  for (auto item : reg)
+  {
+    int rd = item.first >> 4;
+    switch (item.first & 0xf)
+    {
+    case 4:
+        if (
+            (rd==CSR_VXSAT) ||
+            (rd==CSR_VXRM)  ||
+            (rd==CSR_VCSR)  ||
+            (rd==CSR_VL)    ||
+            (rd==CSR_VTYPE) ||
+            (rd==CSR_VLENB)
+           )
+        {
+          have_csr_vector_csr = true;
+        }
+        else
+        {
+          have_csr = true;
+        }
+    }
+  }
+  if (have_csr)
+  {
+//    fprintf(log_file_csr,"");
+    commit_log_print_value(log_file_csr, xlen, pc);
+    fprintf(log_file_csr, " update ");
+  }
+
+  bool is_value_printed_to_log_file_csr = false;
+  bool is_value_printed_to_log_file_reg = false;
+
+  for (auto item : reg)
+  {
     if (item.first == 0)
       continue;
 
@@ -232,23 +272,66 @@ static void commit_log_syntacore_print_insn(processor_t *p, reg_t pc, insn_t ins
         show_vec = true;
     }
 
-    if (!is_vec) {
+    if (!is_vec)
+    {
       if (prefix == 'c')
       {
-//        fprintf(log_file, " c%d_%s ", rd, csr_name(rd));
-        fprintf(log_file, " %s ", csr_name(rd));
+        if (
+            (rd==CSR_VXSAT) ||
+            (rd==CSR_VXRM)  ||
+            (rd==CSR_VCSR)  ||
+            (rd==CSR_VCSR)  ||
+            (rd==CSR_VL)    ||
+            (rd==CSR_VTYPE) ||
+            (rd==CSR_VSTART) ||
+            (rd==CSR_VLENB)
+           )
+        {
+            if (is_value_printed_to_log_file_reg)
+            {
+             fprintf(log_file_reg, ",");
+            }
+            else
+            {
+             is_value_printed_to_log_file_reg=true;
+            }
+            fprintf(log_file_reg, "%s=", csr_name(rd));
+            commit_log_print_value(log_file_reg, size, item.second.v);
+          continue;
+        }
+
+        if (is_value_printed_to_log_file_csr)
+        {
+          fprintf(log_file_csr, ",");
+        }
+        else
+        {
+          is_value_printed_to_log_file_csr=true;
+        }
+        fprintf(log_file_csr, "%s=", csr_name(rd));
+        commit_log_print_value(log_file_csr, size, item.second.v);
+        continue;
       }
       else
       {
-//        fprintf(log_file, " %c%2d ", prefix, rd);
-        fprintf(log_file, " %c%d=", prefix, rd);
+        if (is_value_printed_to_log_file_reg)
+        {
+          fprintf(log_file_reg, ",");
+        }
+        else
+        {
+          is_value_printed_to_log_file_reg=true;
+        }
+        fprintf(log_file_reg, "%c%d=", prefix, rd);
       }
       if (is_vreg)
         {
-           commit_log_print_value(log_file, size, &p->VU.elt<uint8_t>(rd, 0));
+           commit_log_print_value(log_file_reg, size, &p->VU.elt<uint8_t>(rd, 0));
         }
       else
-        commit_log_print_value(log_file, size, item.second.v);
+        {
+           commit_log_print_value(log_file_reg, size, item.second.v);
+        }
     }
   }
 /*
@@ -264,13 +347,18 @@ static void commit_log_syntacore_print_insn(processor_t *p, reg_t pc, insn_t ins
     commit_log_print_value(log_file, std::get<2>(item) << 3, std::get<1>(item));
   }
 */
-  fprintf(log_file, "\n");
+  fprintf(log_file_reg, "\n");
+  if (have_csr)
+  {
+     fprintf(log_file_csr, "\n");
+  }
+
 }
 #else
 static void commit_log_reset(processor_t* p) {}
 static void commit_log_stash_privilege(processor_t* p) {}
 static void commit_log_print_insn(processor_t* p, reg_t pc, insn_t insn) {}
-static void commit_log_syntacore_print_insn(processor_t *p, reg_t pc, insn_t insn) {}
+static void commit_log_syntacore_print_insn(processor_t *p, reg_t pc, reg_t npc, insn_t insn) {}
 #endif
 
 
@@ -297,7 +385,7 @@ static inline reg_t execute_insn(processor_t* p, reg_t pc, insn_fetch_t fetch)
 #ifdef RISCV_ENABLE_COMMITLOG
       if (p->get_log_commits_enabled()) {
         //commit_log_print_insn(p, pc, fetch.insn);
-        commit_log_syntacore_print_insn(p, pc, fetch.insn);
+        commit_log_syntacore_print_insn(p, pc, npc, fetch.insn);
       }
 #endif
 
@@ -306,7 +394,7 @@ static inline reg_t execute_insn(processor_t* p, reg_t pc, insn_fetch_t fetch)
   } catch (wait_for_interrupt_t &t) {
       if (p->get_log_commits_enabled()) {
         //commit_log_print_insn(p, pc, fetch.insn);
-        commit_log_syntacore_print_insn(p, pc, fetch.insn);
+        commit_log_syntacore_print_insn(p, pc, 0, fetch.insn);
       }
       throw;
   } catch(mem_trap_t& t) {
@@ -315,7 +403,7 @@ static inline reg_t execute_insn(processor_t* p, reg_t pc, insn_fetch_t fetch)
         for (auto item : p->get_state()->log_reg_write) {
           if ((item.first & 3) == 3) {
 //            commit_log_print_insn(p, pc, fetch.insn);
-            commit_log_syntacore_print_insn(p, pc, fetch.insn);
+            commit_log_syntacore_print_insn(p, pc, 0, fetch.insn);
             break;
           }
         }
