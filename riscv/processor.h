@@ -14,6 +14,7 @@
 #include "debug_rom_defines.h"
 #include "entropy_source.h"
 #include "csrs.h"
+#include "isa_parser.h"
 
 class processor_t;
 class mmu_t;
@@ -23,12 +24,29 @@ class trap_t;
 class extension_t;
 class disassembler_t;
 
+reg_t illegal_instruction(processor_t* p, insn_t insn, reg_t pc);
+
 struct insn_desc_t
 {
   insn_bits_t match;
   insn_bits_t mask;
-  insn_func_t rv32;
-  insn_func_t rv64;
+  insn_func_t rv32i;
+  insn_func_t rv64i;
+  insn_func_t rv32e;
+  insn_func_t rv64e;
+
+  insn_func_t func(int xlen, bool rve)
+  {
+    if (rve)
+      return xlen == 64 ? rv64e : rv32e;
+    else
+      return xlen == 64 ? rv64i : rv32i;
+  }
+
+  static insn_desc_t illegal()
+  {
+    return {0, 0, &illegal_instruction, &illegal_instruction, &illegal_instruction, &illegal_instruction};
+  }
 };
 
 // regnum, data
@@ -159,7 +177,8 @@ struct state_t
   csr_t_p mtval;
   csr_t_p mtvec;
   csr_t_p mcause;
-  minstret_csr_t_p minstret;
+  wide_counter_csr_t_p minstret;
+  wide_counter_csr_t_p mcycle;
   mie_csr_t_p mie;
   mip_csr_t_p mip;
   csr_t_p medeleg;
@@ -199,8 +218,13 @@ struct state_t
   static const int max_pmp = 16;
   pmpaddr_csr_t_p pmpaddr[max_pmp];
 
-  csr_t_p fflags;
-  csr_t_p frm;
+  float_csr_t_p fflags;
+  float_csr_t_p frm;
+
+  csr_t_p menvcfg;
+  csr_t_p senvcfg;
+  csr_t_p henvcfg;
+
   bool serialized; // whether timer CSRs are in a well-defined state
 
   // When true, execute a single instruction and then enter debug mode.  This
@@ -227,36 +251,6 @@ typedef enum {
   OPERATION_LOAD,
 } trigger_operation_t;
 
-typedef enum {
-  // 65('A') ~ 90('Z') is reserved for standard isa in misa
-  EXT_ZFH,
-  EXT_ZBA,
-  EXT_ZBB,
-  EXT_ZBC,
-  EXT_ZBS,
-  EXT_ZBKB,
-  EXT_ZBKC,
-  EXT_ZBKX,
-  EXT_ZKND,
-  EXT_ZKNE,
-  EXT_ZKNH,
-  EXT_ZKSED,
-  EXT_ZKSH,
-  EXT_ZKR,
-  EXT_SVNAPOT,
-  EXT_SVPBMT,
-  EXT_SVINVAL,
-  EXT_XBITMANIP,
-} isa_extension_t;
-
-typedef enum {
-  IMPL_MMU_SV32,
-  IMPL_MMU_SV39,
-  IMPL_MMU_SV48,
-  IMPL_MMU_SBARE,
-  IMPL_MMU,
-} impl_extension_t;
-
 // Count number of contiguous 1 bits starting from the LSB.
 static int cto(reg_t val)
 {
@@ -270,10 +264,12 @@ static int cto(reg_t val)
 class processor_t : public abstract_device_t
 {
 public:
-  processor_t(const char* isa, const char* priv, const char* varch,
+  processor_t(isa_parser_t isa, const char* varch,
               simif_t* sim, uint32_t id, bool halt_on_reset,
               FILE *log_file, std::ostream& sout_); // because of command line option --log and -s we need both
   ~processor_t();
+
+  const isa_parser_t &get_isa() { return isa; }
 
   void set_debug(bool value);
   void set_histogram(bool value);
@@ -283,7 +279,7 @@ public:
 #endif
   void reset();
   void step(size_t n); // run for n cycles
-  void set_csr(int which, reg_t val);
+  void put_csr(int which, reg_t val);
   uint32_t get_id() const { return id; }
   reg_t get_csr(int which, insn_t insn, bool write, bool peek = 0);
   reg_t get_csr(int which) { return get_csr(which, insn_t(0), false, true); }
@@ -296,8 +292,6 @@ public:
     // variable xlen, this method should be removed.
     return xlen;
   }
-  unsigned get_max_xlen() { return max_xlen; }
-  std::string get_isa_string() { return isa_string; }
   unsigned get_flen() {
     return extension_enabled('Q') ? 128 :
            extension_enabled('D') ? 64 :
@@ -312,7 +306,7 @@ public:
     if (ext >= 'A' && ext <= 'Z')
       return state.misa->extension_enabled(ext);
     else
-      return extension_table[ext];
+      return isa.extension_enabled(ext);
   }
   // Is this extension enabled? and abort if this extension can
   // possibly be disabled dynamically. Useful for documenting
@@ -321,7 +315,7 @@ public:
     if (ext >= 'A' && ext <= 'Z')
       return state.misa->extension_enabled_const(ext);
     else
-      return extension_table[ext];  // assume this can't change
+      return isa.extension_enabled(ext);  // assume this can't change
   }
   void set_impl(uint8_t impl, bool val) { impl_table[impl] = val; }
   bool supports_impl(uint8_t impl) const {
@@ -450,22 +444,20 @@ public:
   const char* get_symbol(uint64_t addr);
 
 private:
+  isa_parser_t isa;
+
   simif_t* sim;
   mmu_t* mmu; // main memory is always accessed via the mmu
   std::unordered_map<std::string, extension_t*> custom_extensions;
   disassembler_t* disassembler;
   state_t state;
   uint32_t id;
-  unsigned max_xlen;
   unsigned xlen;
-  reg_t max_isa;
-  std::string isa_string;
   bool histogram_enabled;
   bool log_commits_enabled;
   FILE *log_file;
   std::ostream sout_; // needed for socket command interface -s, also used for -d and -l, but not for --log
   bool halt_on_reset;
-  std::vector<bool> extension_table;
   std::vector<bool> impl_table;
 
   std::vector<insn_desc_t> instructions;
@@ -490,7 +482,6 @@ private:
 
   void parse_varch_string(const char*);
   void parse_priv_string(const char*);
-  void parse_isa_string(const char*);
   void build_opcode_map();
   void register_base_instructions();
   insn_func_t decode_insn(insn_t insn);
@@ -512,7 +503,8 @@ public:
       int setvl_count;
       reg_t vlmax;
       reg_t vlenb;
-      vector_csr_t_p vxrm, vstart, vxsat, vl, vtype;
+      csr_t_p vxsat;
+      vector_csr_t_p vxrm, vstart, vl, vtype;
       reg_t vma, vta;
       reg_t vsew;
       float vflmul;
@@ -554,9 +546,9 @@ public:
         setvl_count(0),
         vlmax(0),
         vlenb(0),
+        vxsat(0),
         vxrm(0),
         vstart(0),
-        vxsat(0),
         vl(0),
         vtype(0),
         vma(0),
@@ -587,12 +579,5 @@ public:
 
   vectorUnit_t VU;
 };
-
-reg_t illegal_instruction(processor_t* p, insn_t insn, reg_t pc);
-
-#define REGISTER_INSN(proc, name, match, mask, archen) \
-  extern reg_t rv32_##name(processor_t*, insn_t, reg_t); \
-  extern reg_t rv64_##name(processor_t*, insn_t, reg_t); \
-  proc->register_insn((insn_desc_t){match, mask, rv32_##name, rv64_##name,archen});
 
 #endif

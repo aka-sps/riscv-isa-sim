@@ -329,7 +329,7 @@ void processor_t::step(size_t n)
           enter_debug_mode(DCSR_CAUSE_HWBP);
           break;
         case ACTION_DEBUG_EXCEPTION: {
-          insn_trap_t trap(CAUSE_BREAKPOINT, t.address);
+          trap_breakpoint trap(state.v, t.address);
           take_trap(trap, pc);
           break;
         }
@@ -349,6 +349,10 @@ void processor_t::step(size_t n)
     }
 
     state.minstret->bump(instret);
+
+    // Model a hart whose CPI is 1.
+    state.mcycle->bump(instret);
+
     n -= instret;
   }
 }

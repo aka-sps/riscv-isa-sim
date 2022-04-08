@@ -12,9 +12,9 @@ riscv_hdrs = \
 	common.h \
 	decode.h \
 	devices.h \
-	disasm.h \
 	dts.h \
 	mmu.h \
+	cfg.h \
 	processor.h \
 	sim.h \
 	simif.h \
@@ -39,15 +39,14 @@ riscv_precompiled_hdrs = \
 	insn_template.h \
 
 riscv_srcs = \
+	isa_parser.cc \
 	processor.cc \
 	execute.cc \
 	dts.cc \
 	sim.cc \
 	interactive.cc \
-	trap.cc \
 	cachesim.cc \
 	mmu.cc \
-	disasm.cc \
 	extension.cc \
 	extensions.cc \
 	rocc.cc \
@@ -426,10 +425,10 @@ riscv_insn_ext_b = \
 	unshfli \
 	unshflw \
 	xnor \
-	xperm_n \
-	xperm_b \
-	xperm_h \
-	xperm_w \
+	xperm4 \
+	xperm8 \
+	xperm16 \
+	xperm32 \
 
 # Scalar Crypto ISE
 riscv_insn_ext_k = \
@@ -500,7 +499,7 @@ riscv_insn_ext_v_alu_int = \
 	vmadd_vv \
 	vmadd_vx \
 	vmand_mm \
-	vmandnot_mm \
+	vmandn_mm \
 	vmax_vv \
 	vmax_vx \
 	vmaxu_vv \
@@ -516,7 +515,7 @@ riscv_insn_ext_v_alu_int = \
 	vmnand_mm \
 	vmnor_mm \
 	vmor_mm \
-	vmornot_mm \
+	vmorn_mm \
 	vmsbc_vv \
 	vmsbc_vx \
 	vmsbc_vvm \
@@ -1008,7 +1007,6 @@ riscv_insn_ext_p_simd = \
 	kabs16 \
 	clrs16 \
 	clz16 \
-	clo16 \
 	smin8 \
 	umin8 \
 	smax8 \
@@ -1018,8 +1016,6 @@ riscv_insn_ext_p_simd = \
 	kabs8 \
 	clrs8 \
 	clz8 \
-	clo8 \
-	swap8 \
 	sunpkd810 \
 	sunpkd820 \
 	sunpkd830 \
@@ -1082,8 +1078,6 @@ riscv_insn_ext_p_partial_simd = \
 	sclip32 \
 	uclip32 \
 	clrs32 \
-	clz32 \
-	clo32 \
 	pbsad \
 	pbsada \
 	smaqa \
@@ -1147,19 +1141,12 @@ riscv_insn_ext_p_non_simd = \
 	uraddw \
 	rsubw \
 	ursubw \
-	maxw \
-	minw \
 	mulr64 \
 	mulsr64 \
 	msubr32 \
 	ave \
 	sra_u \
 	srai_u \
-	bitrev \
-	bitrevi \
-	wext \
-	wexti \
-	bpick \
 	insb \
 	maddr32 \
 
@@ -1239,10 +1226,9 @@ riscv_insn_ext_p_rv64_only = \
 	smdrs32 \
 	smxds32 \
 	sraiw_u \
-	pkbb32 \
 	pkbt32 \
 	pktb32 \
-	pktt32 \
+	clz32 \
 
 riscv_insn_ext_p = \
 	$(riscv_insn_ext_p_simd) \
@@ -1273,6 +1259,12 @@ riscv_insn_svinval = \
 	hinval_vvma \
 	hinval_gvma \
 
+riscv_insn_ext_cmo = \
+	cbo_clean \
+	cbo_flush \
+	cbo_inval \
+	cbo_zero \
+
 riscv_insn_list = \
 	$(riscv_insn_ext_a) \
 	$(riscv_insn_ext_c) \
@@ -1289,6 +1281,7 @@ riscv_insn_list = \
 	$(riscv_insn_ext_p) \
 	$(riscv_insn_priv) \
 	$(riscv_insn_svinval) \
+	$(riscv_insn_ext_cmo) \
 
 riscv_gen_srcs = \
 	$(addsuffix .cc,$(riscv_insn_list))

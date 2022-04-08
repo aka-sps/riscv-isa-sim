@@ -23,35 +23,42 @@
 #undef STATE
 #define STATE state
 
-processor_t::processor_t(const char* isa, const char* priv, const char* varch,
+processor_t::processor_t(isa_parser_t isa, const char* varch,
                          simif_t* sim, uint32_t id, bool halt_on_reset,
                          FILE* log_file, std::ostream& sout_)
-  : debug(false), halt_request(HR_NONE), sim(sim), id(id), xlen(0),
+  : debug(false), halt_request(HR_NONE), isa(isa), sim(sim), id(id), xlen(0),
   histogram_enabled(false), log_commits_enabled(false),
   log_file(log_file), sout_(sout_.rdbuf()), halt_on_reset(halt_on_reset),
-  extension_table(256, false), impl_table(256, false), last_pc(1), executions(1)
+  impl_table(256, false), last_pc(1), executions(1)
 {
   VU.p = this;
 
-  parse_isa_string(isa);
-  parse_priv_string(priv);
+#ifndef __SIZEOF_INT128__
+  if (extension_enabled('V')) {
+    fprintf(stderr, "V extension is not supported on platforms without __int128 type\n");
+    abort();
+  }
+#endif
+
   parse_varch_string(varch);
 
   register_base_instructions();
   mmu = new mmu_t(sim, this);
 
-  disassembler = new disassembler_t(max_xlen);
-  for (auto e : custom_extensions)
-    for (auto disasm_insn : e.second->get_disasms())
-      disassembler->add_insn(disasm_insn);
+  disassembler = new disassembler_t(&isa);
+  for (auto e : isa.get_extensions())
+    register_extension(e.second);
 
   set_pmp_granularity(1 << PMP_SHIFT);
   set_pmp_num(state.max_pmp);
 
-  if (max_xlen == 32)
+  if (isa.get_max_xlen() == 32)
     set_mmu_capability(IMPL_MMU_SV32);
-  else if (max_xlen == 64)
+  else if (isa.get_max_xlen() == 64)
     set_mmu_capability(IMPL_MMU_SV48);
+
+  set_impl(IMPL_MMU_ASID, true);
+  set_impl(IMPL_MMU_VMID, true);
 
   reset();
 }
@@ -75,17 +82,6 @@ static void bad_option_string(const char *option, const char *value,
                               const char *msg)
 {
   fprintf(stderr, "error: bad %s option '%s'. %s\n", option, value, msg);
-  abort();
-}
-
-static void bad_isa_string(const char* isa, const char* msg)
-{
-  bad_option_string("--isa", isa, msg);
-}
-
-static void bad_priv_string(const char* priv)
-{
-  fprintf(stderr, "error: bad --priv option %s\n", priv);
   abort();
 }
 
@@ -117,12 +113,17 @@ static bool check_pow2(int val)
   return ((val & (val - 1))) == 0;
 }
 
+static std::string strtolower(const char* str)
+{
+  std::string res;
+  for (const char *r = str; *r; r++)
+    res += std::tolower(*r);
+  return res;
+}
+
 void processor_t::parse_varch_string(const char* s)
 {
-  std::string str, tmp;
-  for (const char *r = s; *r; r++)
-    str += std::tolower(*r);
-
+  std::string str = strtolower(s);
   size_t pos = 0;
   size_t len = str.length();
   int vlen = 0;
@@ -165,165 +166,6 @@ void processor_t::parse_varch_string(const char* s)
   VU.vstart_alu = vstart_alu;
 }
 
-static std::string strtolower(const char* str)
-{
-  std::string res;
-  for (const char *r = str; *r; r++)
-    res += std::tolower(*r);
-  return res;
-}
-
-void processor_t::parse_priv_string(const char* str)
-{
-  std::string lowercase = strtolower(str);
-  bool user = false, supervisor = false;
-
-  if (lowercase == "m")
-    ;
-  else if (lowercase == "mu")
-    user = true;
-  else if (lowercase == "msu")
-    user = supervisor = true;
-  else
-    bad_priv_string(str);
-
-  if (user) {
-    max_isa |= reg_t(user) << ('u' - 'a');
-    extension_table['U'] = true;
-  }
-
-  if (supervisor) {
-    max_isa |= reg_t(supervisor) << ('s' - 'a');
-    extension_table['S'] = true;
-  }
-}
-
-void processor_t::parse_isa_string(const char* str)
-{
-  isa_string = strtolower(str);
-  const char* all_subsets = "imafdqchp"
-#ifdef __SIZEOF_INT128__
-    "v"
-#endif
-    "";
-
-  max_isa = reg_t(2) << 62;
-  if (isa_string.compare(0, 4, "rv32") == 0)
-    max_xlen = 32, max_isa = reg_t(1) << 30;
-  else if (isa_string.compare(0, 4, "rv64") == 0)
-    max_xlen = 64;
-  else
-    bad_isa_string(str, "Spike supports either RV32I or RV64I");
-  if (isa_string[4] == 'g')
-    isa_string = isa_string.substr(0, 4) + "imafd" + isa_string.substr(5);
-  if (isa_string[4] != 'i')
-    bad_isa_string(str, "'I' extension is required");
-
-  auto p = isa_string.begin();
-  for (p += 4; islower(*p) && !strchr("zsx", *p); ++p) {
-    while (*all_subsets && (*p != *all_subsets))
-      ++all_subsets;
-    if (!*all_subsets)
-      bad_isa_string(str, "Wrong order");
-    switch (*p) {
-      case 'q': max_isa |= 1L << ('d' - 'a');
-      case 'd': max_isa |= 1L << ('f' - 'a');
-    }
-    max_isa |= 1L << (*p - 'a');
-    extension_table[toupper(*p)] = true;
-    while (isdigit(*(p + 1))) {
-      ++p; // skip major version, point, and minor version if presented
-      if (*(p + 1) == 'p') ++p;
-    }
-    p += *(p + 1) == '_'; // underscores may be used to improve readability
-  }
-
-  while (islower(*p) || (*p == '_')) {
-    p += *p == '_'; // first underscore is optional
-    auto end = p;
-    do ++end; while (*end && *end != '_');
-    auto ext_str = std::string(p, end);
-    if (ext_str == "zfh") {
-      if (!((max_isa >> ('f' - 'a')) & 1))
-        bad_isa_string(str, "'Zfh' extension requires 'F'");
-      extension_table[EXT_ZFH] = true;
-    } else if (ext_str == "zicsr") {
-      // Spike necessarily has Zicsr, because
-      // Zicsr is implied by the privileged architecture
-    } else if (ext_str == "zba") {
-      extension_table[EXT_ZBA] = true;
-    } else if (ext_str == "zbb") {
-      extension_table[EXT_ZBB] = true;
-    } else if (ext_str == "zbc") {
-      extension_table[EXT_ZBC] = true;
-    } else if (ext_str == "zbs") {
-      extension_table[EXT_ZBS] = true;
-    } else if (ext_str == "zbkb") {
-      extension_table[EXT_ZBKB] = true;
-    } else if (ext_str == "zbkc") {
-      extension_table[EXT_ZBKC] = true;
-    } else if (ext_str == "zbkx") {
-      extension_table[EXT_ZBKX] = true;
-    } else if (ext_str == "zk") {
-      extension_table[EXT_ZBKB] = true;
-      extension_table[EXT_ZBKC] = true;
-      extension_table[EXT_ZBKX] = true;
-      extension_table[EXT_ZKND] = true;
-      extension_table[EXT_ZKNE] = true;
-      extension_table[EXT_ZKNH] = true;
-      extension_table[EXT_ZKR] = true;
-    } else if (ext_str == "zkn") {
-      extension_table[EXT_ZBKB] = true;
-      extension_table[EXT_ZBKC] = true;
-      extension_table[EXT_ZBKX] = true;
-      extension_table[EXT_ZKND] = true;
-      extension_table[EXT_ZKNE] = true;
-      extension_table[EXT_ZKNH] = true;
-    } else if (ext_str == "zknd") {
-      extension_table[EXT_ZKND] = true;
-    } else if (ext_str == "zkne") {
-      extension_table[EXT_ZKNE] = true;
-    } else if (ext_str == "zknh") {
-      extension_table[EXT_ZKNH] = true;
-    } else if (ext_str == "zks") {
-      extension_table[EXT_ZBKB] = true;
-      extension_table[EXT_ZBKC] = true;
-      extension_table[EXT_ZBKX] = true;
-      extension_table[EXT_ZKSED] = true;
-      extension_table[EXT_ZKSH] = true;
-    } else if (ext_str == "zksed") {
-      extension_table[EXT_ZKSED] = true;
-    } else if (ext_str == "zksh") {
-      extension_table[EXT_ZKSH] = true;
-    } else if (ext_str == "zkr") {
-      extension_table[EXT_ZKR] = true;
-    } else if (ext_str == "zkt") {
-    } else if (ext_str == "svnapot") {
-      extension_table[EXT_SVNAPOT] = true;
-    } else if (ext_str == "svpbmt") {
-      extension_table[EXT_SVPBMT] = true;
-    } else if (ext_str == "svinval") {
-      extension_table[EXT_SVINVAL] = true;
-    } else if (ext_str[0] == 'x') {
-      max_isa |= 1L << ('x' - 'a');
-      extension_table[toupper('x')] = true;
-      if (ext_str == "xbitmanip") {
-        extension_table[EXT_XBITMANIP] = true;
-      } else if (ext_str.size() == 1) {
-        bad_isa_string(str, "single 'X' is not a proper name");
-      } else if (ext_str != "xdummy") {
-        register_extension(find_extension(ext_str.substr(1).c_str())());
-      }
-    } else {
-      bad_isa_string(str, ("unsupported extension: " + ext_str).c_str());
-    }
-    p = end;
-  }
-  if (*p) {
-    bad_isa_string(str, ("can't parse: " + std::string(p, isa_string.end())).c_str());
-  }
-}
-
 static int xlen_to_uxl(int xlen)
 {
   if (xlen == 32)
@@ -333,6 +175,8 @@ static int xlen_to_uxl(int xlen)
   abort();
 }
 
+const int state_t::num_triggers;
+
 void state_t::reset(processor_t* const proc, reg_t max_isa)
 {
   pc = DEFAULT_RSTVEC;
@@ -341,7 +185,7 @@ void state_t::reset(processor_t* const proc, reg_t max_isa)
 
   // This assumes xlen is always max_xlen, which is true today (see
   // mstatus_csr_t::unlogged_write()):
-  auto xlen = proc->get_max_xlen();
+  auto xlen = proc->get_isa().get_max_xlen();
 
   prv = PRV_M;
   v = false;
@@ -353,16 +197,20 @@ void state_t::reset(processor_t* const proc, reg_t max_isa)
   csrmap[CSR_MSCRATCH] = std::make_shared<basic_csr_t>(proc, CSR_MSCRATCH, 0);
   csrmap[CSR_MTVEC] = mtvec = std::make_shared<tvec_csr_t>(proc, CSR_MTVEC);
   csrmap[CSR_MCAUSE] = mcause = std::make_shared<cause_csr_t>(proc, CSR_MCAUSE);
-  csrmap[CSR_MINSTRET] = minstret = std::make_shared<minstret_csr_t>(proc, CSR_MINSTRET);
-  csrmap[CSR_MCYCLE] = std::make_shared<proxy_csr_t>(proc, CSR_MCYCLE, minstret);
-  csrmap[CSR_INSTRET] = std::make_shared<counter_proxy_csr_t>(proc, CSR_INSTRET, minstret);
-  csrmap[CSR_CYCLE] = std::make_shared<counter_proxy_csr_t>(proc, CSR_CYCLE, minstret);
+  csrmap[CSR_MINSTRET] = minstret = std::make_shared<wide_counter_csr_t>(proc, CSR_MINSTRET);
+  csrmap[CSR_MCYCLE] = mcycle = std::make_shared<wide_counter_csr_t>(proc, CSR_MCYCLE);
+  if (proc->extension_enabled_const(EXT_ZICNTR)) {
+    csrmap[CSR_INSTRET] = std::make_shared<counter_proxy_csr_t>(proc, CSR_INSTRET, minstret);
+    csrmap[CSR_CYCLE] = std::make_shared<counter_proxy_csr_t>(proc, CSR_CYCLE, mcycle);
+  }
   if (xlen == 32) {
-    minstreth_csr_t_p minstreth;
-    csrmap[CSR_MINSTRETH] = minstreth = std::make_shared<minstreth_csr_t>(proc, CSR_MINSTRETH, minstret);
-    csrmap[CSR_MCYCLEH] = std::make_shared<proxy_csr_t>(proc, CSR_MCYCLEH, minstreth);
-    csrmap[CSR_INSTRETH] = std::make_shared<counter_proxy_csr_t>(proc, CSR_INSTRETH, minstreth);
-    csrmap[CSR_CYCLEH] = std::make_shared<counter_proxy_csr_t>(proc, CSR_CYCLEH, minstreth);
+    counter_top_csr_t_p minstreth, mcycleh;
+    csrmap[CSR_MINSTRETH] = minstreth = std::make_shared<counter_top_csr_t>(proc, CSR_MINSTRETH, minstret);
+    csrmap[CSR_MCYCLEH] = mcycleh = std::make_shared<counter_top_csr_t>(proc, CSR_MCYCLEH, mcycle);
+    if (proc->extension_enabled_const(EXT_ZICNTR)) {
+      csrmap[CSR_INSTRETH] = std::make_shared<counter_proxy_csr_t>(proc, CSR_INSTRETH, minstreth);
+      csrmap[CSR_CYCLEH] = std::make_shared<counter_proxy_csr_t>(proc, CSR_CYCLEH, mcycleh);
+    }
   }
   for (reg_t i=3; i<=31; ++i) {
     const reg_t which_mevent = CSR_MHPMEVENT3 + i - 3;
@@ -372,51 +220,60 @@ void state_t::reset(processor_t* const proc, reg_t max_isa)
     const reg_t which_counterh = CSR_HPMCOUNTER3H + i - 3;
     auto mevent = std::make_shared<const_csr_t>(proc, which_mevent, 0);
     auto mcounter = std::make_shared<const_csr_t>(proc, which_mcounter, 0);
-    auto counter = std::make_shared<counter_proxy_csr_t>(proc, which_counter, mcounter);
     csrmap[which_mevent] = mevent;
     csrmap[which_mcounter] = mcounter;
-    csrmap[which_counter] = counter;
+
+    if (proc->extension_enabled_const(EXT_ZICNTR) && proc->extension_enabled_const(EXT_ZIHPM)) {
+      auto counter = std::make_shared<counter_proxy_csr_t>(proc, which_counter, mcounter);
+      csrmap[which_counter] = counter;
+    }
     if (xlen == 32) {
       auto mcounterh = std::make_shared<const_csr_t>(proc, which_mcounterh, 0);
-      auto counterh = std::make_shared<counter_proxy_csr_t>(proc, which_counterh, mcounterh);
       csrmap[which_mcounterh] = mcounterh;
-      csrmap[which_counterh] = counterh;
+      if (proc->extension_enabled_const(EXT_ZICNTR) && proc->extension_enabled_const(EXT_ZIHPM)) {
+        auto counterh = std::make_shared<counter_proxy_csr_t>(proc, which_counterh, mcounterh);
+        csrmap[which_counterh] = counterh;
+      }
     }
   }
   csrmap[CSR_MCOUNTINHIBIT] = std::make_shared<const_csr_t>(proc, CSR_MCOUNTINHIBIT, 0);
   csrmap[CSR_MIE] = mie = std::make_shared<mie_csr_t>(proc, CSR_MIE);
   csrmap[CSR_MIP] = mip = std::make_shared<mip_csr_t>(proc, CSR_MIP);
-  auto sip_sie_accr = std::make_shared<generic_int_accessor_t>(this,
-                                                               ~MIP_HS_MASK,  // read_mask
-                                                               MIP_SSIP,      // ip_write_mask
-                                                               ~MIP_HS_MASK,  // ie_write_mask
-                                                               true,          // mask_mideleg
-                                                               false,         // mask_hideleg
-                                                               0);            // shiftamt
+  auto sip_sie_accr = std::make_shared<generic_int_accessor_t>(
+    this,
+    ~MIP_HS_MASK,  // read_mask
+    MIP_SSIP,      // ip_write_mask
+    ~MIP_HS_MASK,  // ie_write_mask
+    generic_int_accessor_t::mask_mode_t::MIDELEG,
+    0              // shiftamt
+  );
 
-  auto hip_hie_accr = std::make_shared<generic_int_accessor_t>(this,
-                                                               MIP_HS_MASK,   // read_mask
-                                                               MIP_VSSIP,     // ip_write_mask
-                                                               MIP_HS_MASK,   // ie_write_mask
-                                                               false,         // mask_mideleg
-                                                               false,         // mask_hideleg
-                                                               0);
+  auto hip_hie_accr = std::make_shared<generic_int_accessor_t>(
+    this,
+    MIP_HS_MASK,   // read_mask
+    MIP_VSSIP,     // ip_write_mask
+    MIP_HS_MASK,   // ie_write_mask
+    generic_int_accessor_t::mask_mode_t::MIDELEG,
+    0              // shiftamt
+  );
 
-  auto hvip_accr = std::make_shared<generic_int_accessor_t>(this,
-                                                            MIP_VS_MASK,   // read_mask
-                                                            MIP_VS_MASK,   // ip_write_mask
-                                                            MIP_VS_MASK,   // ie_write_mask
-                                                            false,         // mask_mideleg
-                                                            false,         // mask_hideleg
-                                                            0);            // shiftamt
+  auto hvip_accr = std::make_shared<generic_int_accessor_t>(
+    this,
+    MIP_VS_MASK,   // read_mask
+    MIP_VS_MASK,   // ip_write_mask
+    MIP_VS_MASK,   // ie_write_mask
+    generic_int_accessor_t::mask_mode_t::NONE,
+    0              // shiftamt
+  );
 
-  auto vsip_vsie_accr = std::make_shared<generic_int_accessor_t>(this,
-                                                                 MIP_VS_MASK,   // read_mask
-                                                                 MIP_VSSIP,     // ip_write_mask
-                                                                 MIP_VS_MASK,   // ie_write_mask
-                                                                 false,         // mask_mideleg
-                                                                 true,          // mask_hideleg
-                                                                 1);            // shiftamt
+  auto vsip_vsie_accr = std::make_shared<generic_int_accessor_t>(
+    this,
+    MIP_VS_MASK,   // read_mask
+    MIP_VSSIP,     // ip_write_mask
+    MIP_VS_MASK,   // ie_write_mask
+    generic_int_accessor_t::mask_mode_t::HIDELEG,
+    1              // shiftamt
+  );
 
   auto nonvirtual_sip = std::make_shared<mip_proxy_csr_t>(proc, CSR_SIP, sip_sie_accr);
   auto vsip = std::make_shared<mip_proxy_csr_t>(proc, CSR_VSIP, vsip_vsie_accr);
@@ -466,7 +323,7 @@ void state_t::reset(processor_t* const proc, reg_t max_isa)
   csrmap[CSR_HSTATUS] = hstatus = std::make_shared<masked_csr_t>(proc, CSR_HSTATUS, hstatus_mask, hstatus_init);
   csrmap[CSR_HGEIE] = std::make_shared<const_csr_t>(proc, CSR_HGEIE, 0);
   csrmap[CSR_HGEIP] = std::make_shared<const_csr_t>(proc, CSR_HGEIP, 0);
-  csrmap[CSR_HIDELEG] = hideleg = std::make_shared<masked_csr_t>(proc, CSR_HIDELEG, MIP_VS_MASK, 0);
+  csrmap[CSR_HIDELEG] = hideleg = std::make_shared<hideleg_csr_t>(proc, CSR_HIDELEG, mideleg);
   const reg_t hedeleg_mask =
     (1 << CAUSE_MISALIGNED_FETCH) |
     (1 << CAUSE_FETCH_ACCESS) |
@@ -518,12 +375,21 @@ void state_t::reset(processor_t* const proc, reg_t max_isa)
   assert(FSR_AEXC_SHIFT == 0);  // composite_csr_t assumes fflags begins at bit 0
   csrmap[CSR_FCSR] = std::make_shared<composite_csr_t>(proc, CSR_FCSR, frm, fflags, FSR_RD_SHIFT);
 
-  csrmap[CSR_SENTROPY] = std::make_shared<sentropy_csr_t>(proc, CSR_SENTROPY);
+  csrmap[CSR_SEED] = std::make_shared<seed_csr_t>(proc, CSR_SEED);
 
   csrmap[CSR_MARCHID] = std::make_shared<const_csr_t>(proc, CSR_MARCHID, 5);
   csrmap[CSR_MIMPID] = std::make_shared<const_csr_t>(proc, CSR_MIMPID, 0);
   csrmap[CSR_MVENDORID] = std::make_shared<const_csr_t>(proc, CSR_MVENDORID, 0);
   csrmap[CSR_MHARTID] = std::make_shared<const_csr_t>(proc, CSR_MHARTID, proc->get_id());
+  const reg_t menvcfg_mask = (proc->extension_enabled(EXT_ZICBOM) ? MENVCFG_CBCFE | MENVCFG_CBIE: 0) |
+                             (proc->extension_enabled(EXT_ZICBOZ) ? MENVCFG_CBZE: 0);
+  csrmap[CSR_MENVCFG] = menvcfg = std::make_shared<masked_csr_t>(proc, CSR_MENVCFG, menvcfg_mask, 0);
+  const reg_t senvcfg_mask = (proc->extension_enabled(EXT_ZICBOM) ? SENVCFG_CBCFE | SENVCFG_CBIE: 0) |
+                             (proc->extension_enabled(EXT_ZICBOZ) ? SENVCFG_CBZE: 0);
+  csrmap[CSR_SENVCFG] = senvcfg = std::make_shared<masked_csr_t>(proc, CSR_SENVCFG, senvcfg_mask, 0);
+  const reg_t henvcfg_mask = (proc->extension_enabled(EXT_ZICBOM) ? HENVCFG_CBCFE | HENVCFG_CBIE: 0) |
+                             (proc->extension_enabled(EXT_ZICBOZ) ? HENVCFG_CBZE: 0);
+  csrmap[CSR_HENVCFG] = henvcfg = std::make_shared<masked_csr_t>(proc, CSR_HENVCFG, henvcfg_mask, 0);
 
   serialized = false;
 
@@ -545,7 +411,7 @@ void processor_t::vectorUnit_t::reset(){
   memset(reg_file, 0, NVPR * vlenb);
 
   auto& csrmap = p->get_state()->csrmap;
-  csrmap[CSR_VXSAT] = vxsat = std::make_shared<vector_csr_t>(p, CSR_VXSAT, /*mask*/ 0x1ul);
+  csrmap[CSR_VXSAT] = vxsat = std::make_shared<vxsat_csr_t>(p, CSR_VXSAT);
   csrmap[CSR_VSTART] = vstart = std::make_shared<vector_csr_t>(p, CSR_VSTART, /*mask*/ VLEN - 1);
   csrmap[CSR_VXRM] = vxrm = std::make_shared<vector_csr_t>(p, CSR_VXRM, /*mask*/ 0x3ul);
   csrmap[CSR_VL] = vl = std::make_shared<vector_csr_t>(p, CSR_VL, /*mask*/ 0);
@@ -624,8 +490,8 @@ void processor_t::enable_log_commits()
 
 void processor_t::reset()
 {
-  xlen = max_xlen;
-  state.reset(this, max_isa);
+  xlen = isa.get_max_xlen();
+  state.reset(this, isa.get_max_isa());
   state.dcsr->halt = halt_on_reset;
   halt_on_reset = false;
   VU.reset();
@@ -633,8 +499,8 @@ void processor_t::reset()
   if (n_pmp > 0) {
     // For backwards compatibility with software that is unaware of PMP,
     // initialize PMP to permit unprivileged access to all of memory.
-    set_csr(CSR_PMPADDR0, ~reg_t(0));
-    set_csr(CSR_PMPCFG0, PMP_R | PMP_W | PMP_X | PMP_NAPOT);
+    put_csr(CSR_PMPADDR0, ~reg_t(0));
+    put_csr(CSR_PMPCFG0, PMP_R | PMP_W | PMP_X | PMP_NAPOT);
   }
 
    for (auto e : custom_extensions) // reset any extensions
@@ -688,15 +554,16 @@ void processor_t::set_mmu_capability(int cap)
 {
   switch (cap) {
     case IMPL_MMU_SV32:
-      set_impl(cap, true);
+      set_impl(IMPL_MMU_SV32, true);
       set_impl(IMPL_MMU, true);
       break;
-    case IMPL_MMU_SV39:
-      set_impl(cap, true);
-      set_impl(IMPL_MMU, true);
-      break;
+    case IMPL_MMU_SV57:
+      set_impl(IMPL_MMU_SV57, true);
+      // Fall through
     case IMPL_MMU_SV48:
-      set_impl(cap, true);
+      set_impl(IMPL_MMU_SV48, true);
+      // Fall through
+    case IMPL_MMU_SV39:
       set_impl(IMPL_MMU_SV39, true);
       set_impl(IMPL_MMU, true);
       break;
@@ -704,6 +571,7 @@ void processor_t::set_mmu_capability(int cap)
       set_impl(IMPL_MMU_SV32, false);
       set_impl(IMPL_MMU_SV39, false);
       set_impl(IMPL_MMU_SV48, false);
+      set_impl(IMPL_MMU_SV57, false);
       set_impl(IMPL_MMU, false);
       break;
   }
@@ -728,7 +596,7 @@ void processor_t::take_interrupt(reg_t pending_interrupts)
     enabled_interrupts = pending_interrupts & deleg_to_hs & -hs_enabled;
     if (state.v && enabled_interrupts == 0) {
       // VS-ints have least priority and can only be taken with virt enabled
-      const reg_t deleg_to_vs = state.mideleg->read() & state.hideleg->read();
+      const reg_t deleg_to_vs = state.hideleg->read();
       const reg_t vs_enabled = state.prv < PRV_S || (state.prv == PRV_S && sie);
       enabled_interrupts = pending_interrupts & deleg_to_vs & -vs_enabled;
     }
@@ -760,7 +628,7 @@ void processor_t::take_interrupt(reg_t pending_interrupts)
     else
       abort();
 
-    throw trap_t(((reg_t)1 << (max_xlen-1)) | ctz(enabled_interrupts));
+    throw trap_t(((reg_t)1 << (isa.get_max_xlen()-1)) | ctz(enabled_interrupts));
   }
 }
 
@@ -824,6 +692,8 @@ void processor_t::debug_output_log(std::stringstream *s)
 
 void processor_t::take_trap(trap_t& t, reg_t epc)
 {
+  unsigned max_xlen = isa.get_max_xlen();
+
   if (debug) {
     std::stringstream s; // first put everything in a string, later send it to output
     s << "core " << std::dec << std::setfill(' ') << std::setw(3) << id
@@ -859,7 +729,7 @@ void processor_t::take_trap(trap_t& t, reg_t epc)
   bool curr_virt = state.v;
   bool interrupt = (bit & ((reg_t)1 << (max_xlen-1))) != 0;
   if (interrupt) {
-    vsdeleg = (curr_virt && state.prv <= PRV_S) ? (state.mideleg->read() & state.hideleg->read()) : 0;
+    vsdeleg = (curr_virt && state.prv <= PRV_S) ? state.hideleg->read() : 0;
     hsdeleg = (state.prv <= PRV_S) ? state.mideleg->read() : 0;
     bit &= ~((reg_t)1 << (max_xlen-1));
   } else {
@@ -947,6 +817,8 @@ void processor_t::disasm(insn_t insn)
         << ": Executed " << executions << " times" << std::endl;
     }
 
+    unsigned max_xlen = isa.get_max_xlen();
+
     s << "core " << std::dec << std::setfill(' ') << std::setw(3) << id
       << std::hex << ": 0x" << std::setfill('0') << std::setw(max_xlen/4)
       << zext(state.pc, max_xlen) << " (0x" << std::setw(8) << bits << ") "
@@ -964,11 +836,12 @@ void processor_t::disasm(insn_t insn)
 
 int processor_t::paddr_bits()
 {
+  unsigned max_xlen = isa.get_max_xlen();
   assert(xlen == max_xlen);
   return max_xlen == 64 ? 50 : 34;
 }
 
-void processor_t::set_csr(int which, reg_t val)
+void processor_t::put_csr(int which, reg_t val)
 {
   val = zext_xlen(val);
   auto search = state.csrmap.find(which);
@@ -1005,11 +878,13 @@ insn_func_t processor_t::decode_insn(insn_t insn)
   size_t idx = insn.bits() % OPCODE_CACHE_SIZE;
   insn_desc_t desc = opcode_cache[idx];
 
-  if (unlikely(insn.bits() != desc.match || !(xlen == 64 ? desc.rv64 : desc.rv32))) {
+  bool rve = extension_enabled('E');
+
+  if (unlikely(insn.bits() != desc.match || !desc.func(xlen, rve))) {
     // fall back to linear search
     int cnt = 0;
     insn_desc_t* p = &instructions[0];
-    while ((insn.bits() & p->mask) != p->match || !(xlen == 64 ? p->rv64 : p->rv32))
+    while ((insn.bits() & p->mask) != p->match || !desc.func(xlen, rve))
       p++, cnt++;
     desc = *p;
 
@@ -1026,7 +901,7 @@ insn_func_t processor_t::decode_insn(insn_t insn)
     opcode_cache[idx].match = insn.bits();
   }
 
-  return xlen == 64 ? desc.rv64 : desc.rv32;
+  return desc.func(xlen, rve);
 }
 
 void processor_t::register_insn(insn_desc_t desc)
@@ -1046,7 +921,7 @@ void processor_t::build_opcode_map()
   std::sort(instructions.begin(), instructions.end(), cmp());
 
   for (size_t i = 0; i < OPCODE_CACHE_SIZE; i++)
-    opcode_cache[i] = {0, 0, &illegal_instruction, &illegal_instruction};
+    opcode_cache[i] = insn_desc_t::illegal();
 }
 
 void processor_t::register_extension(extension_t* x)
@@ -1055,15 +930,13 @@ void processor_t::register_extension(extension_t* x)
     register_insn(insn);
   build_opcode_map();
 
-  if (disassembler)
-    for (auto disasm_insn : x->get_disasms())
-      disassembler->add_insn(disasm_insn);
+  for (auto disasm_insn : x->get_disasms())
+    disassembler->add_insn(disasm_insn);
 
   if (!custom_extensions.insert(std::make_pair(x->name(), x)).second) {
     fprintf(stderr, "extensions must have unique names (got two named \"%s\"!)\n", x->name());
     abort();
   }
-
   x->set_processor(this);
 }
 
@@ -1075,17 +948,23 @@ void processor_t::register_base_instructions()
   #undef DECLARE_INSN
 
   #define DEFINE_INSN(name) \
-    extern reg_t rv32_##name(processor_t*, insn_t, reg_t); \
-    extern reg_t rv64_##name(processor_t*, insn_t, reg_t); \
+    extern reg_t rv32i_##name(processor_t*, insn_t, reg_t); \
+    extern reg_t rv64i_##name(processor_t*, insn_t, reg_t); \
+    extern reg_t rv32e_##name(processor_t*, insn_t, reg_t); \
+    extern reg_t rv64e_##name(processor_t*, insn_t, reg_t); \
     register_insn((insn_desc_t){ \
       name##_match, \
       name##_mask, \
-      rv32_##name, \
-      rv64_##name});
+      rv32i_##name, \
+      rv64i_##name, \
+      rv32e_##name, \
+      rv64e_##name});
   #include "insn_list.h"
   #undef DEFINE_INSN
 
-  register_insn({0, 0, &illegal_instruction, &illegal_instruction});
+  // terminate instruction list with a catch-all
+  register_insn(insn_desc_t::illegal());
+
   build_opcode_map();
 }
 

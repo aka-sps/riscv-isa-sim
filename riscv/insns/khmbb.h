@@ -1,4 +1,5 @@
-require_extension('P');
+require_vector_vs;
+require_extension(EXT_ZPN);
 sreg_t res;
 sreg_t aop = P_SH(RS1, 0);
 sreg_t bop = P_SH(RS2, 0);
